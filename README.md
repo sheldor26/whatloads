@@ -22,6 +22,49 @@ It reads. It never writes.
 file without a `paths` scope, at project and user level — with line counts and
 an estimated token total.
 
+**What `~/.claude` costs everywhere, not just here.** Your global `CLAUDE.md`
+and every skill under `~/.claude/skills/` are audited by default, but their
+real cost is that you pay for them again in every project, before you have
+typed anything, forever. `whatloads --user` breaks that out on its own:
+
+```
+npx whatloads --user
+```
+
+```
+What ~/.claude costs on every single session, in any project
+  ~/.claude/CLAUDE.md    118 lines
+
+  7,222 characters from the global CLAUDE.md and unscoped rules, roughly 1,806 tokens
+
+  75 skill descriptions under ~/.claude/skills/, loaded at launch whether or not the skill fires:
+    saas-ad-studio  960 chars
+    site-audit  939 chars
+    ...
+
+  45,582 characters total, roughly 11,396 tokens (estimated at 4 characters per token, not a tokenizer)
+  Paid again at the start of every session, in every project — this is the fixed part of the bill.
+
+  Not multiplied: nothing under ~/.claude documents a list of your projects, and
+  whatloads does not crawl your filesystem to find one. Pass --projects a,b,c to
+  see this across specific project directories.
+```
+
+Only the skill's `description` (and `when_to_use`) load at launch, capped at the
+documented 1,536 characters — the `SKILL.md` body loads only when the skill
+fires. That is the number counted here, not the file size. Pass
+`--projects <dir1>,<dir2>,...` to multiply it across the projects you actually
+work in:
+
+```
+npx whatloads --user --projects ~/code/site-a,~/code/site-b,~/code/site-c
+```
+
+whatloads never guesses how many projects you have — there is no documented,
+stable list of them under `~/.claude` to read, and this tool does not crawl
+your filesystem looking for one. Without `--projects`, it says so and reports
+the flat, per-session number instead of a total it made up.
+
 **The things that quietly do nothing:**
 
 - A loose `.md` file in `.claude/skills/`. A skill is a directory containing
@@ -86,6 +129,8 @@ npx whatloads --json           machine-readable, same objects as the report
 npx whatloads --quiet          findings only, no context breakdown
 npx whatloads --no-docs        omit the quoted documentation
 npx whatloads --strict         exit non-zero on medium findings too
+npx whatloads --user           add what ~/.claude costs in every project, not just this one
+npx whatloads --projects a,b   multiply that cost across the project directories listed (implies --user)
 ```
 
 Exit code is 1 when anything high-severity was found, so it can gate CI.
