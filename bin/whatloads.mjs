@@ -17,6 +17,7 @@ import { printFindings, printContextCost, printUserScopeCost, printCoverage, c }
 import * as instructions from '../checks/instructions.mjs';
 import * as skills from '../checks/skills.mjs';
 import * as agents from '../checks/agents.mjs';
+import * as mcp from '../checks/mcp.mjs';
 import * as hooks from '../checks/hooks.mjs';
 import * as userScope from '../checks/user-scope.mjs';
 
@@ -65,6 +66,7 @@ const results = [
   ['instructions', instructions],
   ['skills', skills],
   ['subagents', agents],
+  ['mcp', mcp],
   ['hooks and settings', hooks],
   ...(showUser ? [['user scope', userScope]] : []),
 ].map(([name, mod]) => [name, mod, mod.run(setup)]);

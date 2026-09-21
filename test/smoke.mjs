@@ -11,6 +11,7 @@ import { discover } from '../lib/discover.mjs';
 import * as instructions from '../checks/instructions.mjs';
 import * as skills from '../checks/skills.mjs';
 import * as agents from '../checks/agents.mjs';
+import * as mcp from '../checks/mcp.mjs';
 import * as hooks from '../checks/hooks.mjs';
 import * as userScope from '../checks/user-scope.mjs';
 import { withoutCode, imports } from '../lib/markdown.mjs';
@@ -60,6 +61,15 @@ write('.claude/agents/no-desc.md', '---\nname: nodesc-agent\n---\n\n# No descrip
 write('.claude/agents/nested/dupe-a.md', '---\nname: duplicate\ndescription: Use when the first one runs.\n---\n\n# Dupe A\n');
 write('.claude/agents/dupe-b.md', '---\nname: duplicate\ndescription: Use when the second one runs.\n---\n\n# Dupe B\n');
 write('.claude/agents/good.md', '---\nname: good-agent\ndescription: Use when reviewing a pull request, before merging.\n---\n\n# Good\n');
+write('.mcp.json', JSON.stringify({
+  mcpServers: {
+    'no-type': { url: 'https://example.com/mcp' },
+    'leaks-cred': { type: 'http', url: 'https://example.com/mcp', headers: { Authorization: 'Bearer ${ANTHROPIC_API_KEY}' } },
+    'missing-var': { type: 'http', url: 'https://example.com/mcp?base=${WHATLOADS_TEST_UNSET_XYZ}' },
+    'with-default': { type: 'http', url: 'https://example.com/${WHATLOADS_TEST_UNSET_XYZ:-fallback}/mcp' },
+    good: { command: 'node', args: ['server.js'] },
+  },
+}, null, 2));
 write('.claude/settings.json', JSON.stringify({
   hooks: {
     SessionStart: [{ matcher: 'startup|banana', hooks: [{ type: 'command', command: 'echo hello' }] }],
@@ -80,6 +90,7 @@ const found = [
   ...instructions.run(setup).findings,
   ...skills.run(setup).findings,
   ...agents.run(setup).findings,
+  ...mcp.run(setup).findings,
   ...hooks.run(setup).findings,
 ];
 const has = (needle) => found.some((f) => `${f.title} ${f.where} ${f.detail}`.includes(needle));
@@ -98,6 +109,19 @@ ok('a subagent name containing : is reported as high', found.some((f) => f.where
 ok('a subagent with no description is reported as high', found.some((f) => f.where.includes('no-desc.md') && f.title.includes('with no description')));
 ok('two subagents with the same name, including a nested one, are reported', has('duplicate') && has('nested/dupe-a.md') && has('dupe-b.md'));
 ok('a real subagent is not reported', !found.some((f) => f.where.includes('agents/good.md')));
+
+ok('an mcp entry with url but no type is reported as high', found.some((f) => f.title.includes('"no-type"') && f.severity === 'high'));
+ok('a credential variable in a header reads as empty and is reported as high', found.some((f) => f.title.includes('"leaks-cred"') && f.title.includes('ANTHROPIC_API_KEY') && f.severity === 'high'));
+ok('an unset variable with no default is reported as medium', found.some((f) => f.title.includes('"missing-var"') && f.severity === 'medium'));
+ok('an unset variable with a :-default is not reported', !found.some((f) => f.title.includes('"with-default"')));
+ok('a plain stdio server is not reported', !found.some((f) => f.title.includes('"good"')));
+
+const badMcp = mkdtempSync(join(tmpdir(), 'whatloads-badmcp-'));
+mkdirSync(badMcp, { recursive: true });
+writeFileSync(join(badMcp, '.mcp.json'), '{ not json');
+const badMcpFindings = mcp.run(discover(badMcp)).findings;
+ok('an unparseable .mcp.json is reported as high', badMcpFindings.some((f) => f.title.includes('not valid JSON') && f.severity === 'high'));
+rmSync(badMcp, { recursive: true, force: true });
 ok('an unknown matcher value is reported', has('"banana"'));
 ok('a matcher on an event without one is reported', has('Stop does not take a matcher'));
 ok('an echo on a debug-only event is reported', has('PostToolUse prints to stdout'));
@@ -173,6 +197,7 @@ const cleanFindings = [
   ...instructions.run(cleanSetup).findings,
   ...skills.run(cleanSetup).findings,
   ...agents.run(cleanSetup).findings,
+  ...mcp.run(cleanSetup).findings,
   ...hooks.run(cleanSetup).findings,
 ].filter((f) => f.severity !== 'note');
 ok('a tidy project produces no findings', cleanFindings.length === 0);

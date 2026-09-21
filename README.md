@@ -97,6 +97,13 @@ the flat, per-session number instead of a total it made up.
   only one, chosen by filesystem read order.
 - Subagent descriptions that add up past the documented 15,000-token budget,
   where Claude Code itself starts warning at launch.
+- An `.mcp.json` server entry with a `url` but no `type` — read as stdio, so
+  the connection is skipped, not attempted.
+- A credential variable (`ANTHROPIC_API_KEY`, `NPM_TOKEN`, and others) sent in
+  a server's `url` or `headers` — Claude Code always reads those as empty
+  there, by design, with no warning.
+- Any other `${VAR}` reference with no `:-default` that is unset in the
+  environment — the server still loads, with the literal text in place of it.
 
 ## Every finding cites its source
 
