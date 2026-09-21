@@ -1,4 +1,4 @@
-# agentdoctor
+# whatloads
 
 Your agent's instructions, skills and hooks are configuration. Configuration
 fails silently: a skill that never loads looks exactly like a skill that loaded
@@ -6,11 +6,11 @@ and did not apply, and a `CLAUDE.md` that has grown to 600 lines does not
 announce that it is being followed less closely than the 90-line one it
 replaced.
 
-`agentdoctor` reads that setup and tells you two things: **what it costs you on
+`whatloads` reads that setup and tells you two things: **what it costs you on
 every session**, and **what in it silently does nothing**.
 
 ```bash
-npx agentdoctor
+npx whatloads
 ```
 
 It reads. It never writes.
@@ -74,18 +74,18 @@ What was checked
     - the size of every instruction file loaded at launch
     ...
   Not checked: whether your instructions are good, whether a skill does what it
-  says, anything about your application code. agentdoctor reads configuration.
+  says, anything about your application code. whatloads reads configuration.
 ```
 
 ## Options
 
 ```
-npx agentdoctor                  audit the current directory
-npx agentdoctor --dir ./app      audit somewhere else
-npx agentdoctor --json           machine-readable, same objects as the report
-npx agentdoctor --quiet          findings only, no context breakdown
-npx agentdoctor --no-docs        omit the quoted documentation
-npx agentdoctor --strict         exit non-zero on medium findings too
+npx whatloads                  audit the current directory
+npx whatloads --dir ./app      audit somewhere else
+npx whatloads --json           machine-readable, same objects as the report
+npx whatloads --quiet          findings only, no context breakdown
+npx whatloads --no-docs        omit the quoted documentation
+npx whatloads --strict         exit non-zero on medium findings too
 ```
 
 Exit code is 1 when anything high-severity was found, so it can gate CI.
@@ -93,7 +93,7 @@ Exit code is 1 when anything high-severity was found, so it can gate CI.
 ## In CI
 
 ```yaml
-- run: npx agentdoctor --no-docs
+- run: npx whatloads --no-docs
 ```
 
 ## Requirements

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * agentdoctor — audit the agent setup in a repository.
+ * whatloads — audit the agent setup in a repository.
  *
- * npx agentdoctor
+ * npx whatloads
  *
  * Zero dependencies. Reads; never writes.
  */
@@ -34,14 +34,14 @@ if (flag('version') || flag('v')) {
 }
 
 if (flag('help') || flag('h')) {
-  console.log(`agentdoctor — what your agent setup actually costs, and what silently does nothing
+  console.log(`whatloads — what your agent setup actually costs, and what silently does nothing
 
-  npx agentdoctor                  audit the current directory
-  npx agentdoctor --dir ./app      audit somewhere else
-  npx agentdoctor --json           machine-readable output
-  npx agentdoctor --quiet          findings only, no context breakdown
-  npx agentdoctor --no-docs        omit the quoted documentation
-  npx agentdoctor --strict         exit non-zero on medium findings too
+  npx whatloads                  audit the current directory
+  npx whatloads --dir ./app      audit somewhere else
+  npx whatloads --json           machine-readable output
+  npx whatloads --quiet          findings only, no context breakdown
+  npx whatloads --no-docs        omit the quoted documentation
+  npx whatloads --strict         exit non-zero on medium findings too
 
 Exit code is 1 when something high-severity was found, so it can gate CI.
 It reads configuration and never writes anything.

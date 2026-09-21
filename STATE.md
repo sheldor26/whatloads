@@ -10,7 +10,7 @@ updated: 2026-09-21
 
 ## Shipped
 
-- A working CLI: `node bin/agentdoctor.mjs`, zero dependencies, read-only.
+- A working CLI: `node bin/whatloads.mjs`, zero dependencies, read-only.
 - The context cost report: every instruction file loaded at launch, including
   expanded `@path` imports and unscoped `.claude/rules/`, with line counts and
   an estimated token total.
@@ -35,8 +35,9 @@ updated: 2026-09-21
 
 ## Next
 
-1. Write the README and publish 0.1.0 under the name `agentdoctor`, which is
-   free on npm.
+1. Publish 0.1.0 and create the GitHub repository. The name `agentdoctor` was
+   rejected by npm as too close to an existing package (M-0001); `whatloads` is
+   the name everything now carries.
 2. Read the script a hook actually runs, not only the command line, so a
    `bash run.sh` whose script ends in a bare `echo` is caught the way an inline
    `echo` already is. This is the check that would have caught the defect the

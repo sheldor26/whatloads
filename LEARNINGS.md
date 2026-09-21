@@ -14,7 +14,7 @@ tags: [dogfooding]
 -->
 ### Point the tool at the projects that produced it, on day one
 
-**What worked.** The first complete run of agentdoctor was against its own repository and the
+**What worked.** The first complete run of whatloads was against its own repository and the
 three other projects on this machine. It immediately reported the same
 high-severity finding in all four: the three skills bitacora installs are loose
 .md files in .claude/skills/, and a skill has to be a directory containing

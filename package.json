@@ -1,10 +1,10 @@
 {
-  "name": "agentdoctor",
+  "name": "whatloads",
   "version": "0.1.0",
   "description": "Audit the agent setup in a repository: what your instructions cost every session, which skills can never fire, which hooks write where nobody reads.",
   "type": "module",
   "bin": {
-    "agentdoctor": "bin/agentdoctor.mjs"
+    "whatloads": "bin/whatloads.mjs"
   },
   "files": [
     "bin",
@@ -19,7 +19,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/sheldor26/agentdoctor.git"
+    "url": "git+https://github.com/sheldor26/whatloads.git"
   },
   "keywords": [
     "claude-code",

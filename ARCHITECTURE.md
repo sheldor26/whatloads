@@ -7,7 +7,7 @@
 ## Shape
 
 ```
-bin/agentdoctor.mjs   argument parsing, running the checks, exit code
+bin/whatloads.mjs   argument parsing, running the checks, exit code
 lib/                  the parts every check shares
 checks/               one module per area, each exporting run() and coverage
 test/smoke.mjs        fixtures on disk, assertions, no framework

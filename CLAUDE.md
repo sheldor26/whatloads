@@ -1,4 +1,4 @@
-# agentdoctor
+# whatloads
 
 Audit the agent setup in a repository: what your instructions cost every session, which skills can never fire, which hooks write where nobody reads.
 

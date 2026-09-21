@@ -19,7 +19,7 @@ let passed = 0;
 const failures = [];
 const ok = (label, cond) => { if (cond) passed++; else failures.push(label); };
 
-const root = mkdtempSync(join(tmpdir(), 'agentdoctor-'));
+const root = mkdtempSync(join(tmpdir(), 'whatloads-'));
 const write = (rel, text) => {
   const p = join(root, rel);
   mkdirSync(join(p, '..'), { recursive: true });
@@ -90,7 +90,7 @@ ok('context cost estimates tokens', facts.estimatedTokens > 0);
 
 // --- clean fixture ---------------------------------------------------------
 
-const clean = mkdtempSync(join(tmpdir(), 'agentdoctor-clean-'));
+const clean = mkdtempSync(join(tmpdir(), 'whatloads-clean-'));
 mkdirSync(join(clean, '.claude', 'skills', 'fine'), { recursive: true });
 writeFileSync(join(clean, 'CLAUDE.md'), '# Small\n\nA few lines.\n');
 writeFileSync(join(clean, '.claude', 'skills', 'fine', 'SKILL.md'), '---\nname: fine\ndescription: Use when releasing, before tagging.\n---\n\n# Fine\n');
