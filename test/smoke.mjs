@@ -57,6 +57,8 @@ write('.claude/skills/stray.md', 'I look like a skill and am not one.\n');
 write('.claude/skills/good/SKILL.md', '---\nname: good\ndescription: Use when the build fails, before touching CI config.\n---\n\n# Good\n');
 write('.claude/skills/late/SKILL.md', '\n---\nname: late\ndescription: Use when something happens.\n---\n\n# Late\n');
 write('.claude/skills/nodesc/SKILL.md', '---\nname: nodesc\n---\n\n# No description\n');
+write('.claude/skills/spanish-trigger/SKILL.md', '---\nname: spanish-trigger\ndescription: Usar cuando Juan quiera armar una guía nueva desde una keyword.\n---\n\n# Spanish trigger\n');
+write('.claude/skills/spanish-notrigger/SKILL.md', '---\nname: spanish-notrigger\ndescription: Optimiza publicaciones de Mercado Libre del rubro óptica para Óptica Carballo.\n---\n\n# Spanish no trigger\n');
 write('.claude/agents/no-name.md', '---\nrole: none of this matters\n---\n\nJust a note to self.\n');
 write('.claude/agents/bad-name.md', '---\nname: -bad\ndescription: Use when reviewing code.\n---\n\n# Bad\n');
 write('.claude/agents/colon-name.md', '---\nname: my-plugin:reviewer\ndescription: Use when reviewing code.\n---\n\n# Colon\n');
@@ -111,6 +113,8 @@ ok('a stray markdown file in skills/ is reported', has('.claude/skills/stray.md'
 ok('a real skill is not reported', !found.some((f) => f.where.includes('skills/good/')));
 ok('frontmatter below line one is reported', found.some((f) => f.where.includes('late/') && f.severity === 'high'));
 ok('a missing description is reported', found.some((f) => f.where.includes('nodesc/') && f.title.includes('No description')));
+ok('a Spanish trigger word is recognized, no finding', !found.some((f) => f.where.includes('spanish-trigger/') && f.title.includes('not when to use it')));
+ok('a Spanish description with no trigger word is still reported', found.some((f) => f.where.includes('spanish-notrigger/') && f.title.includes('not when to use it')));
 
 ok('a subagent with no name field is not reported as broken, only as documentation', has('no-name.md') && found.some((f) => f.where.includes('no-name.md') && f.severity === 'medium'));
 ok('a subagent name starting with - is reported as high', found.some((f) => f.where.includes('bad-name.md') && f.severity === 'high'));

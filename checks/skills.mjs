@@ -74,13 +74,16 @@ export function run(setup) {
           doc: DOCS.descriptionTruncated,
         });
       }
-      if (!/\b(use|when|trigger|before|after|invoke)\b/i.test(description)) {
+      // Claude Code's own docs are English, but a description doesn't have to
+      // be — this looks for either language's trigger words rather than
+      // penalising every non-English skill for a heuristic that only knew one.
+      if (!/\b(use|when|trigger|before|after|invoke|usar|uso|cuando|antes|despu[eé]s|siempre|dispar\w*|invoc\w*)\b/i.test(description)) {
         findings.push({
           severity: 'low',
           inferred: true,
           title: 'The description says what the skill is, not when to use it',
           where,
-          detail: 'Descriptions that never name a trigger tend not to fire. This one is our judgement, not a documented rule: it looks for words like "use when", "before", "trigger".',
+          detail: 'Descriptions that never name a trigger tend not to fire. This one is our judgement, not a documented rule: it looks for words like "use when", "before", "trigger" — or their Spanish equivalents, "usar cuando", "antes de", "siempre que".',
           doc: DOCS.descriptionDecides,
         });
       }

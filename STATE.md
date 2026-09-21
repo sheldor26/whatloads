@@ -92,15 +92,17 @@ updated: 2026-09-20
    turned up agnix, claudelint and AgentLinter as real overlap; per-finding
    doc citation and the `--user`/`--projects` framing are the parts none of
    them do).
-2. `whatloads` on its own real `~/.claude` now reports 0 high, 0 medium,
-   13 low. The three loose `.md` files in `~/.claude/skills/` (the L-0001
-   defect class) were moved to `<name>/SKILL.md`, and the one medium finding
-   — this repo's own `.claude/hooks/bitacora-session-end.sh`, flagged for
-   printing plain text on the ambiguous-stdout `Stop` event — turned out to
-   be whatloads misreading a script that already wraps its echo/printf output
-   as `systemMessage` JSON through a pipe (M-0005); fixed in the check, not
-   the script, which was correct all along. What remains is 13 low, inferred
-   findings: real skill descriptions that don't name a trigger word.
+2. `whatloads` on its own real `~/.claude` now reports zero findings. The
+   three loose `.md` files in `~/.claude/skills/` (the L-0001 defect class)
+   were moved to `<name>/SKILL.md`; the medium finding on this repo's own
+   `.claude/hooks/bitacora-session-end.sh` turned out to be whatloads
+   misreading a script that already wraps its echo/printf output as
+   `systemMessage` JSON through a pipe (M-0005), fixed in the check, not the
+   script; and the 13 "no trigger word" lows were the inferred-description
+   heuristic only recognizing English words (use/when/before/trigger) against
+   a real skill library written in Spanish — it now also recognizes "usar",
+   "cuando", "antes", "siempre", etc. None of the 13 skill files themselves
+   were touched.
 
 ## Known rough edges
 
