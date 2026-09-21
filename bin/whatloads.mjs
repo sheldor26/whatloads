@@ -12,10 +12,12 @@ import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { discover } from '../lib/discover.mjs';
-import { printFindings, printContextCost, printCoverage, c } from '../lib/report.mjs';
+import { resolveProjectDirs } from '../lib/projects.mjs';
+import { printFindings, printContextCost, printUserScopeCost, printCoverage, c } from '../lib/report.mjs';
 import * as instructions from '../checks/instructions.mjs';
 import * as skills from '../checks/skills.mjs';
 import * as hooks from '../checks/hooks.mjs';
+import * as userScope from '../checks/user-scope.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -42,6 +44,8 @@ if (flag('help') || flag('h')) {
   npx whatloads --quiet          findings only, no context breakdown
   npx whatloads --no-docs        omit the quoted documentation
   npx whatloads --strict         exit non-zero on medium findings too
+  npx whatloads --user           add what ~/.claude costs in every project, not just this one
+  npx whatloads --projects a,b   multiply that cost across the project directories listed (implies --user)
 
 Exit code is 1 when something high-severity was found, so it can gate CI.
 It reads configuration and never writes anything.
@@ -52,25 +56,33 @@ It reads configuration and never writes anything.
 const root = resolve(process.cwd(), opt('dir', '.'));
 const setup = discover(root);
 
+const projectsOpt = opt('projects', null);
+const showUser = flag('user') || Boolean(projectsOpt);
+const projectDirs = projectsOpt ? resolveProjectDirs(projectsOpt, process.cwd()) : null;
+
 const results = [
   ['instructions', instructions],
   ['skills', skills],
   ['hooks and settings', hooks],
+  ...(showUser ? [['user scope', userScope]] : []),
 ].map(([name, mod]) => [name, mod, mod.run(setup)]);
 
 const findings = results.flatMap(([, , r]) => r.findings);
 const contextFacts = results.find(([name]) => name === 'instructions')[2].facts;
+const userScopeFacts = showUser ? results.find(([name]) => name === 'user scope')[2].facts : null;
 
 if (flag('json')) {
   console.log(JSON.stringify({
     root,
     findings,
     context: contextFacts,
+    userScope: showUser ? { ...userScopeFacts, projects: projectDirs } : null,
     checked: Object.fromEntries(results.map(([name, mod]) => [name, mod.coverage])),
   }, null, 2));
 } else {
   console.log('');
   if (!flag('quiet')) printContextCost(contextFacts);
+  if (showUser) printUserScopeCost(userScopeFacts, projectDirs);
 
   if (findings.length) {
     printFindings(findings, { showDocs: !flag('no-docs') });

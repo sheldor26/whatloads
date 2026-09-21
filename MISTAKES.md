@@ -7,6 +7,36 @@
 >
 > Add entries with: `node .bitacora/cli.mjs new mistake "Title" --tags area,failure-mode`
 <!-- bitacora:entry
+id: M-0003
+date: 2026-09-21
+tags: [testing, scope]
+severity: medium
+-->
+### Clean fixture leaked the real ~/.claude into a hermetic test
+
+**What happened.** The "a tidy project produces no findings" assertion in `test/smoke.mjs` failed
+while building the user-scope report, on this machine, without a single line of
+application code changed — confirmed by stashing the whole diff and re-running
+the suite against unmodified `master`. `discover()` always resolves the user
+config directory from `CLAUDE_CONFIG_DIR` or `homedir()/.claude` (`lib/discover.mjs`),
+and the clean fixture never touched that env var, so it was silently auditing
+whoever's real `~/.claude` happened to be on the machine running the test.
+
+**Root cause.** The fixture built an isolated project directory but assumed user scope came
+along for free. It didn't: user scope is resolved from the environment, not
+from the fixture root, so "isolated project" was never "isolated setup". The
+assertion had been passing only because every machine it had run on so far
+happened to have a tidy `~/.claude` — an accident of the test author's own
+config, not a property the test verified.
+
+**Guardrail.** Any fixture that asserts an exact finding count (zero or otherwise) must set
+`CLAUDE_CONFIG_DIR` to a temp directory it created itself before calling
+`discover()`, and restore the previous value in the same block. The clean
+fixture and the new user-scope fixture in `test/smoke.mjs` both do this now;
+a fixture that reads user scope without it is the pattern to watch for in
+review.
+
+<!-- bitacora:entry
 id: M-0002
 date: 2026-09-21
 tags: [logbook, tooling]

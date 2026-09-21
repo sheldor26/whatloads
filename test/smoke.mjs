@@ -11,9 +11,11 @@ import { discover } from '../lib/discover.mjs';
 import * as instructions from '../checks/instructions.mjs';
 import * as skills from '../checks/skills.mjs';
 import * as hooks from '../checks/hooks.mjs';
+import * as userScope from '../checks/user-scope.mjs';
 import { withoutCode, imports } from '../lib/markdown.mjs';
 import { readFrontmatter } from '../lib/frontmatter.mjs';
 import { nearest } from '../lib/hook-events.mjs';
+import { resolveProjectDirs } from '../lib/projects.mjs';
 
 let passed = 0;
 const failures = [];
@@ -88,12 +90,60 @@ ok('context cost counts the imported file', facts.files.some((f) => f.path.inclu
 ok('context cost never counts a missing file', !facts.files.some((f) => f.path.includes('missing.md')));
 ok('context cost estimates tokens', facts.estimatedTokens > 0);
 
+// --- user scope, against a fake CLAUDE_CONFIG_DIR ---------------------------
+
+ok('resolveProjectDirs returns nothing for no input', resolveProjectDirs(null, root).valid.length === 0);
+
+const cfgRoot = mkdtempSync(join(tmpdir(), 'whatloads-cfg-'));
+const writeCfg = (rel, text) => {
+  const p = join(cfgRoot, rel);
+  mkdirSync(join(p, '..'), { recursive: true });
+  writeFileSync(p, text);
+  return p;
+};
+const userProjectRoot = mkdtempSync(join(tmpdir(), 'whatloads-userproj-'));
+
+const globalClaudeMd = '# Me\n\nGlobal instructions.\n';
+writeCfg('CLAUDE.md', globalClaudeMd);
+writeCfg('skills/short/SKILL.md', `---\nname: short\ndescription: ${'a'.repeat(10)}\nwhen_to_use: ${'b'.repeat(5)}\n---\n\n# Short\n`);
+writeCfg('skills/long/SKILL.md', `---\nname: long\ndescription: ${'c'.repeat(2000)}\n---\n\n# Long\n`);
+
+const prevCfgDir = process.env.CLAUDE_CONFIG_DIR;
+process.env.CLAUDE_CONFIG_DIR = cfgRoot;
+
+const userSetup = discover(userProjectRoot);
+const userFacts = userScope.run(userSetup).facts;
+
+if (prevCfgDir === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+else process.env.CLAUDE_CONFIG_DIR = prevCfgDir;
+
+const shortSkill = userFacts.skills.find((s) => s.name === 'short');
+const longSkill = userFacts.skills.find((s) => s.name === 'long');
+ok('a short skill description is counted in full', shortSkill?.rawChars === 15 && shortSkill?.chars === 15);
+ok('a long skill description is cut off at 1,536', longSkill?.rawChars === 2000 && longSkill?.chars === 1536);
+ok('the global CLAUDE.md is counted in the flat per-session cost', userFacts.chars === globalClaudeMd.length);
+ok('the total is the flat cost plus every skill description', userFacts.totalChars === userFacts.chars + userFacts.skillsChars);
+
+const dirs = resolveProjectDirs(`${userProjectRoot},${join(userProjectRoot, 'does-not-exist')}`, root);
+ok('resolveProjectDirs keeps a real directory', dirs.valid.includes(userProjectRoot));
+ok('resolveProjectDirs rejects a path that is not a directory', dirs.invalid.length === 1);
+
+rmSync(cfgRoot, { recursive: true, force: true });
+rmSync(userProjectRoot, { recursive: true, force: true });
+
 // --- clean fixture ---------------------------------------------------------
 
 const clean = mkdtempSync(join(tmpdir(), 'whatloads-clean-'));
 mkdirSync(join(clean, '.claude', 'skills', 'fine'), { recursive: true });
 writeFileSync(join(clean, 'CLAUDE.md'), '# Small\n\nA few lines.\n');
 writeFileSync(join(clean, '.claude', 'skills', 'fine', 'SKILL.md'), '---\nname: fine\ndescription: Use when releasing, before tagging.\n---\n\n# Fine\n');
+
+// Isolated from this machine's real ~/.claude, so the assertion below holds
+// regardless of what is actually installed globally when the suite runs.
+const cleanCfg = mkdtempSync(join(tmpdir(), 'whatloads-clean-cfg-'));
+const prevCfgDirForClean = process.env.CLAUDE_CONFIG_DIR;
+process.env.CLAUDE_CONFIG_DIR = cleanCfg;
+
 const cleanSetup = discover(clean);
 const cleanFindings = [
   ...instructions.run(cleanSetup).findings,
@@ -102,8 +152,12 @@ const cleanFindings = [
 ].filter((f) => f.severity !== 'note');
 ok('a tidy project produces no findings', cleanFindings.length === 0);
 
+if (prevCfgDirForClean === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+else process.env.CLAUDE_CONFIG_DIR = prevCfgDirForClean;
+
 rmSync(root, { recursive: true, force: true });
 rmSync(clean, { recursive: true, force: true });
+rmSync(cleanCfg, { recursive: true, force: true });
 
 console.log(`\n${passed} passed, ${failures.length} failed\n`);
 for (const f of failures) console.log(`  FAIL  ${f}`);

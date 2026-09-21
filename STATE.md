@@ -1,6 +1,6 @@
 # State
 
-updated: 2026-09-21
+updated: 2026-09-20
 
 > A snapshot of where this project is right now — the file a new session reads
 > first. It answers "what exists, what is half-done, what is next".
@@ -27,7 +27,17 @@ updated: 2026-09-21
   and hook commands pointing at scripts that are not in the repository.
 - `--json`, `--quiet`, `--no-docs`, `--strict`, `--dir`. Exit 1 on any high
   finding, so it can gate CI.
-- 29 assertions in `test/smoke.mjs`, against fixtures on disk.
+- The user-scope report (`--user`): what the global `CLAUDE.md`, unscoped
+  `~/.claude/rules/`, and every skill description under `~/.claude/skills/`
+  cost on every single session, in any project — skill descriptions truncated
+  at the same 1,536 characters Claude Code truncates at, since that's what
+  loads at launch, not the SKILL.md body. `--projects a,b,c` multiplies that
+  cost across the directories listed and implies `--user`; without it, the
+  report says explicitly that it was not multiplied, since nothing under
+  `~/.claude` documents a project list and whatloads does not crawl the
+  filesystem for one. Also in `--json`, under `userScope`.
+- 36 assertions in `test/smoke.mjs`, against fixtures on disk, including one
+  that points `CLAUDE_CONFIG_DIR` at a fake config directory.
 
 ## In flight
 
@@ -42,9 +52,13 @@ updated: 2026-09-21
    `bash run.sh` whose script ends in a bare `echo` is caught the way an inline
    `echo` already is. This is the check that would have caught the defect the
    tool was built around.
-3. Audit user scope properly: `~/.claude/CLAUDE.md` and `~/.claude/skills/` are
-   already discovered, but nothing yet reports what the user-level setup costs
-   *across* every project, which is where the number gets uncomfortable.
+3. `whatloads` on its own real `~/.claude` (not a fixture) currently reports
+   3 high, 13 low: loose `.md` files directly in `~/.claude/skills/` that have
+   never loaded (the L-0001 defect class), and skill descriptions that don't
+   name a trigger. Not a regression from anything in this session — confirmed
+   identical on unmodified `master` — but it means a completely clean run of
+   `whatloads` against this machine's actual setup hasn't been demonstrated
+   yet, only against fixtures.
 
 ## Known rough edges
 
