@@ -35,7 +35,8 @@ updated: 2026-09-20
   (loads as the literal text).
 - Hook and settings checks: unparseable settings files, event names that do not
   exist (with a suggestion), matchers on events that take none, matcher values
-  outside the documented set, hooks printing to a stream the model never reads,
+  outside the documented set, hooks printing to a stream the model never reads
+  — including inside a script a wrapper command runs, e.g. `bash run.sh` —
   and hook commands pointing at scripts that are not in the repository.
 - `--json`, `--quiet`, `--no-docs`, `--strict`, `--dir`. Exit 1 on any high
   finding, so it can gate CI.
@@ -48,7 +49,7 @@ updated: 2026-09-20
   report says explicitly that it was not multiplied, since nothing under
   `~/.claude` documents a project list and whatloads does not crawl the
   filesystem for one. Also in `--json`, under `userScope`.
-- 52 assertions in `test/smoke.mjs`, against fixtures on disk, including one
+- 54 assertions in `test/smoke.mjs`, against fixtures on disk, including one
   that points `CLAUDE_CONFIG_DIR` at a fake config directory.
 - A logo (`assets/logo.svg`) in the README, and the GitHub repo's About
   description and topics set to match.
@@ -59,22 +60,21 @@ updated: 2026-09-20
 
 ## Next
 
-1. Read the script a hook actually runs, not only the command line, so a
-   `bash run.sh` whose script ends in a bare `echo` is caught the way an inline
-   `echo` already is. This is the check that would have caught the defect the
-   tool was built around.
-2. Submit to awesome-claude-code (issue-template flow, highest-ROI
+1. Submit to awesome-claude-code (issue-template flow, highest-ROI
    distribution move for a tool with zero users so far — competitive research
    turned up agnix, claudelint and AgentLinter as real overlap; per-finding
    doc citation and the `--user`/`--projects` framing are the parts none of
    them do).
-3. `whatloads` on its own real `~/.claude` (not a fixture) currently reports
+2. `whatloads` on its own real `~/.claude` (not a fixture) currently reports
    3 high, 13 low: loose `.md` files directly in `~/.claude/skills/` that have
    never loaded (the L-0001 defect class), and skill descriptions that don't
    name a trigger. Not a regression from anything in this session — confirmed
    identical on unmodified `master` — but it means a completely clean run of
    `whatloads` against this machine's actual setup hasn't been demonstrated
-   yet, only against fixtures.
+   yet, only against fixtures. The `Stop` hook check now also finds a real,
+   unrelated issue in *this* repo's own `.claude/hooks/bitacora-session-end.sh`
+   (prints plain text on an ambiguous-stdout event) — not fixed here, since
+   that script belongs to bitacora, not to a check.
 
 ## Known rough edges
 

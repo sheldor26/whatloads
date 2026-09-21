@@ -70,12 +70,16 @@ write('.mcp.json', JSON.stringify({
     good: { command: 'node', args: ['server.js'] },
   },
 }, null, 2));
+write('.claude/hooks/loud.sh', '#!/bin/sh\ndo-the-thing\necho done\n');
+write('.claude/hooks/quiet.sh', '#!/bin/sh\nexit 0\n');
 write('.claude/settings.json', JSON.stringify({
   hooks: {
     SessionStart: [{ matcher: 'startup|banana', hooks: [{ type: 'command', command: 'echo hello' }] }],
     Stop: [{ matcher: 'always', hooks: [{ type: 'command', command: 'echo bye' }] }],
     PostToolUse: [{ matcher: 'Edit', hooks: [{ type: 'command', command: 'echo noted' }] }],
     SesionStart: [{ hooks: [{ type: 'command', command: 'true' }] }],
+    SubagentStop: [{ matcher: 'all', hooks: [{ type: 'command', command: 'bash "$CLAUDE_PROJECT_DIR/.claude/hooks/loud.sh"' }] }],
+    SubagentStart: [{ matcher: 'all', hooks: [{ type: 'command', command: 'bash "$CLAUDE_PROJECT_DIR/.claude/hooks/quiet.sh"' }] }],
     PreToolUse: [
     { matcher: 'Bash', hooks: [{ type: 'command', command: 'bash "$CLAUDE_PROJECT_DIR/.claude/hooks/nope.sh"' }] },
     { matcher: 'Write', hooks: [{ type: 'command', command: '"/Users/someone/tools/guard.mjs" hook || true' }] },
@@ -130,6 +134,8 @@ ok('a hook script that is not there is reported', has('nope.sh'));
 ok('unparseable settings are reported', has('not valid JSON'));
 ok('a machine-specific path in a shared hook is reported', has('/Users/someone/tools/guard.mjs'));
 ok('a system binary in a shared hook is not reported', !has('/usr/bin/true'));
+ok('a wrapper script that echoes on a debug-only event is reported', found.some((f) => f.title.includes('runs a script that prints to stdout') && f.where.includes('loud.sh')));
+ok('a wrapper script that stays quiet is not reported', !has('quiet.sh'));
 
 const facts = instructions.run(setup).facts;
 ok('context cost counts the imported file', facts.files.some((f) => f.path.includes('context.md')));

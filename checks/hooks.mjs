@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { EVENTS, nearest } from '../lib/hook-events.mjs';
 import { DOCS } from '../lib/docs.mjs';
@@ -7,12 +7,19 @@ export const coverage = [
   'every settings file parses as JSON',
   'every hook event name is one Claude Code actually fires',
   'matchers on events that do not take one, and matcher values outside the documented set',
-  'hooks whose output goes somewhere the model never reads',
+  'hooks whose output goes somewhere the model never reads, including inside a script the command runs',
   'hook commands pointing at scripts that are not in the repository',
   'shared hooks naming a path that exists on only one machine',
 ];
 
-const SHELL_ECHO = /(^|[;&|]\s*)(echo|printf|cat|print)\b/;
+const SHELL_ECHO = /(^|[;&|\n]\s*)(echo|printf|cat|print)\b/;
+const SCRIPT_REF = /(?:^|[;&|]\s*)(?:bash|sh|zsh|python3?|node)\s+["']?(\.{0,2}\/?[^"'\s]+\.(?:sh|bash|zsh|py|mjs|cjs|js|ts))["']?|(?:^|[;&|]\s*)["']?(\.{0,2}\/[^"'\s]+\.(?:sh|bash|zsh|py|mjs|cjs|js|ts))["']?/;
+
+function scriptRef(command) {
+  const m = command.match(SCRIPT_REF);
+  if (!m) return null;
+  return (m[1] || m[2] || '').replace(/\$\{?CLAUDE_PROJECT_DIR\}?/, '.');
+}
 
 export function run(setup) {
   const findings = [];
@@ -94,6 +101,29 @@ export function run(setup) {
                 : 'Plain stdout on this event goes to the debug log. If the point is to tell the model something, print JSON with a "systemMessage" field and exit 0.',
               doc: spec.stdout === 'ambiguous' ? DOCS.stopSection : DOCS.stdoutExceptions,
             });
+          } else if (command && (spec.stdout === 'debug' || spec.stdout === 'discarded' || spec.stdout === 'ambiguous')) {
+            // The command line itself has no echo, but it may be a wrapper —
+            // `bash run.sh` — that hides one inside the script it calls. Only
+            // follow a reference that resolves inside the project; a path
+            // that isn't there is a miss, never a guess (DECISIONS.md D-0004).
+            const ref = scriptRef(command);
+            const scriptPath = ref ? resolve(setup.root, ref) : null;
+            if (scriptPath && scriptPath.startsWith(resolve(setup.root)) && existsSync(scriptPath)) {
+              const scriptText = (() => { try { return readFileSync(scriptPath, 'utf8'); } catch { return ''; } })();
+              if (SHELL_ECHO.test(scriptText)) {
+                findings.push({
+                  severity: spec.stdout === 'ambiguous' ? 'medium' : 'high',
+                  title: spec.stdout === 'ambiguous'
+                    ? `${event} runs a script that prints to stdout, and the reference contradicts itself about where that goes`
+                    : `${event} runs a script that prints to stdout, which the model never reads`,
+                  where: `${where} -> ${setup.rel(scriptPath)}`,
+                  detail: spec.stdout === 'ambiguous'
+                    ? 'The events list excludes this event from the ones whose stdout becomes context; the section for the event itself says the opposite. Have the script print JSON with a "systemMessage" field instead — that path is documented either way.'
+                    : 'The command line looks fine; the script it runs is the one printing plain text on this event, which goes to the debug log. Have the script print JSON with a "systemMessage" field and exit 0.',
+                  doc: spec.stdout === 'ambiguous' ? DOCS.stopSection : DOCS.stdoutExceptions,
+                });
+              }
+            }
           }
 
           // A shared settings file is cloned by everyone. A command naming a

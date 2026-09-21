@@ -86,7 +86,8 @@ the flat, per-session number instead of a total it made up.
 - A matcher on an event that takes none, or a matcher value outside the
   documented set.
 - A hook that prints to stdout on an event whose stdout goes to the debug log,
-  where the model never sees it.
+  where the model never sees it — including a wrapper command like `bash
+  run.sh` that hides the echo inside the script it calls.
 - A hook command pointing at a script that is not in the repository.
 - A `.claude/agents/*.md` file with no `name` — treated as documentation, never
   loaded as a subagent.
