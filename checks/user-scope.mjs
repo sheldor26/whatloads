@@ -44,7 +44,10 @@ export function run(setup, instructionFacts) {
     .map((a) => {
       const name = typeof a.front.data.name === 'string' ? a.front.data.name : '';
       const description = typeof a.front.data.description === 'string' ? a.front.data.description : '';
-      return name && description ? { name, path: setup.rel(a.path), chars: description.length } : null;
+      // A name starting with - or containing : never loads (checks/agents.mjs)
+      // — counting its description here would overstate a cost nobody pays.
+      const invalidName = name.startsWith('-') || name.includes(':');
+      return name && description && !invalidName ? { name, path: setup.rel(a.path), chars: description.length } : null;
     })
     .filter(Boolean);
   const agentsChars = agents.reduce((n, a) => n + a.chars, 0);

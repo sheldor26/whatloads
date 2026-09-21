@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { expandImports } from '../lib/discover.mjs';
+import { expandImports, isInside } from '../lib/discover.mjs';
 import { lineCount } from '../lib/markdown.mjs';
 import { DOCS } from '../lib/docs.mjs';
 
@@ -22,7 +22,7 @@ export function run(setup) {
       // Tag by where the file physically lives, not by whichever entry
       // happened to pull it in first — a project CLAUDE.md that imports
       // ~/.claude/notes.md is still paying a user-scope cost.
-      const scope = path.startsWith(setup.configDir) ? 'user' : entry.scope;
+      const scope = isInside(path, setup.configDir) ? 'user' : entry.scope;
       if (!loaded.has(path)) loaded.set(path, { ...info, path, scope, entry: entry.path });
     }
 

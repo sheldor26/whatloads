@@ -7,7 +7,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { discover } from '../lib/discover.mjs';
+import { discover, isInside } from '../lib/discover.mjs';
 import * as instructions from '../checks/instructions.mjs';
 import * as skills from '../checks/skills.mjs';
 import * as agents from '../checks/agents.mjs';
@@ -48,6 +48,9 @@ ok('CRLF frontmatter values have no trailing \\r', readFrontmatter('---\r\nname:
 ok('a quoted comma inside an array item survives', JSON.stringify(readFrontmatter('---\ntags: ["a, b", "c"]\n---\n').data.tags) === JSON.stringify(['a, b', 'c']));
 ok('nearest finds a typo', nearest('SesionStart') === 'SessionStart');
 ok('nearest gives up on nonsense', nearest('bananas') === null);
+ok('isInside rejects a sibling whose name shares a prefix', isInside('/tmp/proj-secrets/notes.md', '/tmp/proj') === false);
+ok('isInside accepts a real descendant', isInside('/tmp/proj/sub/notes.md', '/tmp/proj') === true);
+ok('isInside accepts the directory itself', isInside('/tmp/proj', '/tmp/proj') === true);
 
 // --- fixtures --------------------------------------------------------------
 
@@ -59,6 +62,7 @@ write('.claude/skills/late/SKILL.md', '\n---\nname: late\ndescription: Use when 
 write('.claude/skills/nodesc/SKILL.md', '---\nname: nodesc\n---\n\n# No description\n');
 write('.claude/skills/spanish-trigger/SKILL.md', '---\nname: spanish-trigger\ndescription: Usar cuando Juan quiera armar una guía nueva desde una keyword.\n---\n\n# Spanish trigger\n');
 write('.claude/skills/spanish-notrigger/SKILL.md', '---\nname: spanish-notrigger\ndescription: Optimiza publicaciones de Mercado Libre del rubro óptica para Óptica Carballo.\n---\n\n# Spanish no trigger\n');
+write('.claude/skills/spanish-uso-noun/SKILL.md', '---\nname: spanish-uso-noun\ndescription: Genera reportes de uso mensual de la cuenta.\n---\n\n# Uso as a noun\n');
 write('.claude/agents/no-name.md', '---\nrole: none of this matters\n---\n\nJust a note to self.\n');
 write('.claude/agents/bad-name.md', '---\nname: -bad\ndescription: Use when reviewing code.\n---\n\n# Bad\n');
 write('.claude/agents/colon-name.md', '---\nname: my-plugin:reviewer\ndescription: Use when reviewing code.\n---\n\n# Colon\n');
@@ -115,6 +119,7 @@ ok('frontmatter below line one is reported', found.some((f) => f.where.includes(
 ok('a missing description is reported', found.some((f) => f.where.includes('nodesc/') && f.title.includes('No description')));
 ok('a Spanish trigger word is recognized, no finding', !found.some((f) => f.where.includes('spanish-trigger/') && f.title.includes('not when to use it')));
 ok('a Spanish description with no trigger word is still reported', found.some((f) => f.where.includes('spanish-notrigger/') && f.title.includes('not when to use it')));
+ok('"uso" as a plain noun does not count as a trigger word', found.some((f) => f.where.includes('spanish-uso-noun/') && f.title.includes('not when to use it')));
 
 ok('a subagent with no name field is not reported as broken, only as documentation', has('no-name.md') && found.some((f) => f.where.includes('no-name.md') && f.severity === 'medium'));
 ok('a subagent name starting with - is reported as high', found.some((f) => f.where.includes('bad-name.md') && f.severity === 'high'));
@@ -265,6 +270,55 @@ ok('the global CLAUDE.md importing a file outside ~/.claude is reported', extern
 rmSync(cfgExternal, { recursive: true, force: true });
 rmSync(outsideDir, { recursive: true, force: true });
 rmSync(externalProject, { recursive: true, force: true });
+
+// A sibling directory whose name merely starts with the project's name
+// (proj vs proj-secrets) is not "inside" it — a plain startsWith() would
+// have said otherwise.
+const siblingRoot = mkdtempSync(join(tmpdir(), 'whatloads-proj-'));
+const siblingSecrets = `${siblingRoot}-secrets`;
+mkdirSync(siblingSecrets, { recursive: true });
+writeFileSync(join(siblingSecrets, 'notes.md'), 'secret\n');
+writeFileSync(join(siblingRoot, 'CLAUDE.md'), `# P\n\n@${join(siblingSecrets, 'notes.md')}\n`);
+const siblingFindings = instructions.run(discover(siblingRoot)).findings;
+ok('an import into a same-prefix sibling directory is still external', siblingFindings.some((f) => f.title.includes('imports a file outside the project')));
+rmSync(siblingRoot, { recursive: true, force: true });
+rmSync(siblingSecrets, { recursive: true, force: true });
+
+const hookSiblingRoot = mkdtempSync(join(tmpdir(), 'whatloads-hookproj-'));
+const hookSiblingTools = `${hookSiblingRoot}-tools`;
+mkdirSync(hookSiblingTools, { recursive: true });
+mkdirSync(join(hookSiblingRoot, '.claude'), { recursive: true });
+writeFileSync(join(hookSiblingRoot, '.claude', 'settings.json'), JSON.stringify({
+  hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: join(hookSiblingTools, 'lint.sh') }] }] },
+}, null, 2));
+const hookSiblingFindings = hooks.run(discover(hookSiblingRoot)).findings;
+ok('a hook path in a same-prefix sibling directory is still flagged machine-specific', hookSiblingFindings.some((f) => f.title.includes('names a path that only exists on one machine')));
+rmSync(hookSiblingRoot, { recursive: true, force: true });
+rmSync(hookSiblingTools, { recursive: true, force: true });
+
+const fakeSysMsg = mkdtempSync(join(tmpdir(), 'whatloads-sysmsg-'));
+mkdirSync(join(fakeSysMsg, '.claude'), { recursive: true });
+writeFileSync(join(fakeSysMsg, '.claude', 'settings.json'), JSON.stringify({
+  hooks: { PostToolUse: [{ matcher: 'Edit', hooks: [{ type: 'command', command: 'echo "TODO wrap this in systemMessage before shipping"' }] }] },
+}, null, 2));
+const fakeSysMsgFindings = hooks.run(discover(fakeSysMsg)).findings;
+ok('mentioning systemMessage without a colon does not suppress the finding', fakeSysMsgFindings.some((f) => f.title.includes('prints to stdout')));
+rmSync(fakeSysMsg, { recursive: true, force: true });
+
+// A subagent with an invalid name never loads, so its description should not
+// count toward the --user total.
+const cfgInvalidAgent = mkdtempSync(join(tmpdir(), 'whatloads-cfg-invalid-agent-'));
+mkdirSync(join(cfgInvalidAgent, 'agents'), { recursive: true });
+writeFileSync(join(cfgInvalidAgent, 'agents', 'bad.md'), `---\nname: -bad\ndescription: ${'d'.repeat(50)}\n---\n\n# Bad\n`);
+const emptyProject2 = mkdtempSync(join(tmpdir(), 'whatloads-emptyproj2-'));
+const prevCfgDir5 = process.env.CLAUDE_CONFIG_DIR;
+process.env.CLAUDE_CONFIG_DIR = cfgInvalidAgent;
+const invalidAgentFacts = userScope.run(discover(emptyProject2)).facts;
+if (prevCfgDir5 === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+else process.env.CLAUDE_CONFIG_DIR = prevCfgDir5;
+ok('an invalid-name subagent does not count toward the --user total', invalidAgentFacts.agentsChars === 0);
+rmSync(cfgInvalidAgent, { recursive: true, force: true });
+rmSync(emptyProject2, { recursive: true, force: true });
 
 // --- clean fixture ---------------------------------------------------------
 

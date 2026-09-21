@@ -65,6 +65,16 @@ updated: 2026-09-20
   invocation under `--user`; and `~/.claude/agents/` descriptions missing
   entirely from the `--user` total. 63 assertions in `test/smoke.mjs` now
   (was 54), including regression cases for each of the above.
+- A second review pass turned up the same bug in five places: every "is this
+  path inside that directory" check used `resolve(a).startsWith(resolve(b))`,
+  which treats `/proj-secrets` as inside `/proj` (M-0006). Now a shared
+  `isInside()` in `lib/discover.mjs`. Also fixed: `printsSystemMessage`
+  matched the bare word anywhere in a script (a comment saying "wrap this in
+  systemMessage" suppressed a real finding) — now requires the `key:`/`key=`
+  shape; the `--user` total counted subagent descriptions for invalid names
+  that never actually load; and the Spanish-trigger-word regex matched "uso"
+  (the noun "usage"), clearing descriptions that never say when to fire. 74
+  assertions now (was 63).
 
 ## Bug hunt findings not fixed
 
@@ -92,6 +102,23 @@ updated: 2026-09-20
    turned up agnix, claudelint and AgentLinter as real overlap; per-finding
    doc citation and the `--user`/`--projects` framing are the parts none of
    them do).
+2. Ranked ideas from a research pass, cross-checked against this logbook so
+   nothing already deferred gets re-suggested (highest priority first):
+   `.claude/commands/*.md` frontmatter checks (reuses the existing parser,
+   two citable traps: `name`/`paths` silently ignored there); a
+   `permissions.defaultMode: auto`/`bypassPermissions` check for project/local
+   settings, which the docs say never takes effect from that scope; two
+   AGENTS.md silent-suppression traps (`CLAUDE.local.md` stops `AGENTS.md`
+   from being read; `AGENTS.local.md`/`AGENTS.override.md`/`.agents/` are
+   never read at all); a plugin-manifest unknown-field check; an
+   output-styles name-collision check (same shape as the subagent one
+   already shipped); a `--json` schema-version field, cheap to add now
+   before anything builds against the current shape. Lower priority /
+   explicitly deferred: a full settings-reference scope-mismatch checker
+   (richest remaining surface, but the scope table is large enough to
+   transcribe that getting it wrong is a real risk); a GitHub Action wrapper
+   (build after the awesome-claude-code submission surfaces real usage, not
+   before).
 2. `whatloads` on its own real `~/.claude` now reports zero findings. The
    three loose `.md` files in `~/.claude/skills/` (the L-0001 defect class)
    were moved to `<name>/SKILL.md`; the medium finding on this repo's own

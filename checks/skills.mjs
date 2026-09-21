@@ -77,7 +77,10 @@ export function run(setup) {
       // Claude Code's own docs are English, but a description doesn't have to
       // be — this looks for either language's trigger words rather than
       // penalising every non-English skill for a heuristic that only knew one.
-      if (!/\b(use|when|trigger|before|after|invoke|usar|uso|cuando|antes|despu[eé]s|siempre|dispar\w*|invoc\w*)\b/i.test(description)) {
+      // "uso" (the noun "usage") dropped from this list: it matched plenty of
+      // descriptions that only describe what the skill does, not when to
+      // reach for it, e.g. "Genera reportes de uso mensual" — a false clear.
+      if (!/\b(use|when|trigger|before|after|invoke|usar|cuando|antes|despu[eé]s|siempre|dispar\w*|invoc\w*)\b/i.test(description)) {
         findings.push({
           severity: 'low',
           inferred: true,

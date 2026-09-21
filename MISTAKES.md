@@ -7,6 +7,39 @@
 >
 > Add entries with: `node .bitacora/cli.mjs new mistake "Title" --tags area,failure-mode`
 <!-- bitacora:entry
+id: M-0006
+date: 2026-09-21
+tags: [paths, scope]
+severity: medium
+-->
+### Five path-containment checks used a raw string prefix instead of a path boundary
+
+**What happened.** A review pass found that `resolve(a).startsWith(resolve(b))` — the pattern used
+to ask "is this path inside that directory" — treats `/Users/juan/proj-secrets`
+as inside `/Users/juan/proj`, because the string `"proj-secrets"` starts with
+the string `"proj"`. It was written this way in five separate places: the
+external-import check, `rel()`'s `~/.claude` labelling, the hook script-follow
+sandboxing, and the "shared hook names a machine-specific path" filter — one
+of them (`checks/instructions.mjs`) was added this same session, copied from
+an already-wrong pattern elsewhere in the codebase.
+
+**Root cause.** `startsWith` is the obvious way to write "is inside", and it is wrong for any
+pair of paths where one directory's name is a prefix of a sibling's. Nobody
+wrote a shared helper for it the first time it was needed, so every later
+check that needed the same test copied the same broken idiom instead of
+questioning it — each copy looked like it was following existing precedent
+in the codebase, which made it look more trustworthy, not less.
+
+**Guardrail.** `lib/discover.mjs` now exports `isInside(child, parent)`, which resolves both
+paths and requires an exact match or a `path.sep`-bounded prefix. All five
+call sites use it; three regression tests
+(`test/smoke.mjs`, "isInside rejects/accepts...", plus fixture tests using a
+`whatloads-proj-` / `whatloads-proj-secrets` directory pair) pin the sibling
+case down. Any future "is this path inside that directory" logic should
+import `isInside` rather than write a new `startsWith` — a bare `.startsWith(`
+on a resolved path is now the pattern to flag in review.
+
+<!-- bitacora:entry
 id: M-0005
 date: 2026-09-21
 tags: [hooks, false-positive]

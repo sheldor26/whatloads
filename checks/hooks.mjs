@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { EVENTS, nearest } from '../lib/hook-events.mjs';
 import { DOCS } from '../lib/docs.mjs';
+import { isInside } from '../lib/discover.mjs';
 
 export const coverage = [
   'every settings file parses as JSON',
@@ -15,9 +16,10 @@ export const coverage = [
 const SHELL_ECHO = /(^|[;&|\n]\s*)(echo|printf|cat|print)\b/;
 // A script whose plain-text echo/printf is piped into something that wraps it
 // as {"systemMessage": ...} never actually puts plain text on stdout — only
-// the wrapper's own output does. Naming the field is a cheap, honest signal
-// that this is already handled, without trying to parse the pipeline for real.
-const printsSystemMessage = (text) => /systemMessage/.test(text);
+// the wrapper's own output does. Requiring the key:value shape (not just the
+// bare word) avoids matching a comment or string that only mentions it, e.g.
+// "# TODO: wrap this in systemMessage before shipping".
+const printsSystemMessage = (text) => /systemMessage["']?\s*[:=]/.test(text);
 const SCRIPT_REF = /(?:^|[;&|]\s*)(?:bash|sh|zsh|python3?|node)\s+["']?(\.{0,2}\/?[^"'\s]+\.(?:sh|bash|zsh|py|mjs|cjs|js|ts))["']?|(?:^|[;&|]\s*)["']?(\.{0,2}\/[^"'\s]+\.(?:sh|bash|zsh|py|mjs|cjs|js|ts)|\$\{?CLAUDE_PROJECT_DIR\}?[^"'\s]+\.(?:sh|bash|zsh|py|mjs|cjs|js|ts))["']?/;
 
 function scriptRef(command) {
@@ -113,7 +115,7 @@ export function run(setup) {
             // that isn't there is a miss, never a guess (DECISIONS.md D-0004).
             const ref = scriptRef(command);
             const scriptPath = ref ? resolve(setup.root, ref) : null;
-            if (scriptPath && scriptPath.startsWith(resolve(setup.root)) && existsSync(scriptPath)) {
+            if (scriptPath && isInside(scriptPath, setup.root) && existsSync(scriptPath)) {
               const scriptText = (() => { try { return readFileSync(scriptPath, 'utf8'); } catch { return ''; } })();
               if (SHELL_ECHO.test(scriptText) && !printsSystemMessage(scriptText)) {
                 findings.push({
@@ -138,7 +140,7 @@ export function run(setup) {
             const absolute = (command.match(/(?:^|["'\s])((?:~|\/|[A-Za-z]:\\)[^"'\s]+)/g) || [])
               .map((s) => s.trim().replace(/^["']/, ''))
               .filter((s) => !['/bin/', '/usr/bin/', '/usr/local/bin/', '/opt/homebrew/bin/', '/opt/local/bin/'].some((prefix) => s.startsWith(prefix)))
-              .filter((s) => !resolve(s).startsWith(resolve(setup.root)));
+              .filter((s) => !isInside(s, setup.root));
             if (absolute.length) {
               findings.push({
                 severity: 'high',
