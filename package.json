@@ -1,0 +1,39 @@
+{
+  "name": "agentdoctor",
+  "version": "0.0.0",
+  "description": "Audit the agent setup in a repository: what your instructions cost every session, which skills can never fire, which hooks write where nobody reads.",
+  "type": "module",
+  "bin": {
+    "agentdoctor": "bin/agentdoctor.mjs"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "checks",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sheldor26/agentdoctor.git"
+  },
+  "keywords": [
+    "claude-code",
+    "agents",
+    "agents-md",
+    "claude-md",
+    "skills",
+    "hooks",
+    "context",
+    "lint",
+    "audit"
+  ],
+  "scripts": {
+    "test": "node test/smoke.mjs",
+    "logbook": "node .bitacora/cli.mjs"
+  }
+}
