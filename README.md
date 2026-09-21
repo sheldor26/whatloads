@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.svg" width="72" height="72" alt="">
+</p>
+
 # whatloads
 
 Your agent's instructions, skills and hooks are configuration. Configuration
