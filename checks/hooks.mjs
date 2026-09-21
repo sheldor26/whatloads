@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { EVENTS, nearest } from '../lib/hook-events.mjs';
 import { DOCS } from '../lib/docs.mjs';
 
@@ -9,6 +9,7 @@ export const coverage = [
   'matchers on events that do not take one, and matcher values outside the documented set',
   'hooks whose output goes somewhere the model never reads',
   'hook commands pointing at scripts that are not in the repository',
+  'shared hooks naming a path that exists on only one machine',
 ];
 
 const SHELL_ECHO = /(^|[;&|]\s*)(echo|printf|cat|print)\b/;
@@ -93,6 +94,25 @@ export function run(setup) {
                 : 'Plain stdout on this event goes to the debug log. If the point is to tell the model something, print JSON with a "systemMessage" field and exit 0.',
               doc: spec.stdout === 'ambiguous' ? DOCS.stopSection : DOCS.stdoutExceptions,
             });
+          }
+
+          // A shared settings file is cloned by everyone. A command naming a
+          // path on one person's disk fails silently for all of them, and a
+          // failed PreToolUse hook is not surfaced anywhere.
+          if (command && file.scope === 'project') {
+            const absolute = (command.match(/(?:^|["'\s])((?:~|\/|[A-Za-z]:\\)[^"'\s]+)/g) || [])
+              .map((s) => s.trim().replace(/^["']/, ''))
+              .filter((s) => !s.startsWith('/bin/') && !s.startsWith('/usr/bin/') && !s.startsWith('/usr/local/bin/'))
+              .filter((s) => !resolve(s).startsWith(resolve(setup.root)));
+            if (absolute.length) {
+              findings.push({
+                severity: 'high',
+                title: 'A shared hook names a path that only exists on one machine',
+                where: `${where} -> ${absolute[0]}`,
+                detail: 'This file is committed, so everyone who clones the repository gets this hook — pointing at a directory they do not have. It fails on every call, and a failed hook is not shown to anyone. Move it to .claude/settings.local.json, or make the path relative to $CLAUDE_PROJECT_DIR.',
+                doc: DOCS.settingsPrecedence,
+              });
+            }
           }
 
           const ref = command.match(/\$CLAUDE_PROJECT_DIR["']?\/([^"'\s]+)/);

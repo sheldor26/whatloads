@@ -1,6 +1,6 @@
 {
   "name": "whatloads",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Audit the agent setup in a repository: what your instructions cost every session, which skills can never fire, which hooks write where nobody reads.",
   "type": "module",
   "bin": {

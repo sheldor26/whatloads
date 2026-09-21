@@ -58,7 +58,11 @@ write('.claude/settings.json', JSON.stringify({
     Stop: [{ matcher: 'always', hooks: [{ type: 'command', command: 'echo bye' }] }],
     PostToolUse: [{ matcher: 'Edit', hooks: [{ type: 'command', command: 'echo noted' }] }],
     SesionStart: [{ hooks: [{ type: 'command', command: 'true' }] }],
-    PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'bash "$CLAUDE_PROJECT_DIR/.claude/hooks/nope.sh"' }] }],
+    PreToolUse: [
+    { matcher: 'Bash', hooks: [{ type: 'command', command: 'bash "$CLAUDE_PROJECT_DIR/.claude/hooks/nope.sh"' }] },
+    { matcher: 'Write', hooks: [{ type: 'command', command: '"/Users/someone/tools/guard.mjs" hook || true' }] },
+    { matcher: 'Edit', hooks: [{ type: 'command', command: '/usr/bin/true' }] },
+  ],
   },
 }, null, 2));
 write('.claude/settings.local.json', '{ not json');
@@ -84,6 +88,8 @@ ok('an echo on a debug-only event is reported', has('PostToolUse prints to stdou
 ok('a misspelled event is reported with a suggestion', has('Did you mean "SessionStart"'));
 ok('a hook script that is not there is reported', has('nope.sh'));
 ok('unparseable settings are reported', has('not valid JSON'));
+ok('a machine-specific path in a shared hook is reported', has('/Users/someone/tools/guard.mjs'));
+ok('a system binary in a shared hook is not reported', !has('/usr/bin/true'));
 
 const facts = instructions.run(setup).facts;
 ok('context cost counts the imported file', facts.files.some((f) => f.path.includes('context.md')));
