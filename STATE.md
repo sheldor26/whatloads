@@ -49,10 +49,37 @@ updated: 2026-09-20
   report says explicitly that it was not multiplied, since nothing under
   `~/.claude` documents a project list and whatloads does not crawl the
   filesystem for one. Also in `--json`, under `userScope`.
-- 54 assertions in `test/smoke.mjs`, against fixtures on disk, including one
-  that points `CLAUDE_CONFIG_DIR` at a fake config directory.
 - A logo (`assets/logo.svg`) in the README, and the GitHub repo's About
   description and topics set to match.
+- A bug-hunt pass (4 parallel review angles, each finding verified against the
+  actual code before trusting it): fixed a symlink cycle under
+  `.claude/agents/` or `.claude/rules/` that crashed `discover()` with
+  unbounded recursion; CRLF `SKILL.md`/agent files that read as "frontmatter
+  never closed"; an inline `[a, b]` frontmatter array that broke on a quoted
+  item containing a comma; the hook script-follow check missing a bare
+  `$CLAUDE_PROJECT_DIR/run.sh` with no `bash`/`sh` in front; the external-import
+  check being silently skipped for the global `CLAUDE.md`; an imported file
+  tagged by the scope of whichever entry pulled it in instead of where it
+  physically lives (so a project file importing `~/.claude/notes.md` never
+  counted toward `--user`); `instructions.run()` executing twice per
+  invocation under `--user`; and `~/.claude/agents/` descriptions missing
+  entirely from the `--user` total. 63 assertions in `test/smoke.mjs` now
+  (was 54), including regression cases for each of the above.
+
+## Bug hunt findings not fixed
+
+- Skill/subagent description truncation counts JS string `.length` (UTF-16
+  code units). For text with astral characters (many emoji) this can
+  over-count; for others it may not match however Claude Code itself counts
+  the documented 1,536/15,000 limits. Not changed — nothing confirms which
+  unit Claude Code uses server-side, and guessing here is exactly what
+  DECISIONS.md D-0004 rules out.
+- `checks/hooks.mjs`'s "shared hook names a path that only exists on one
+  machine" check excludes a short hardcoded list of system bin directories
+  (extended today to cover Homebrew on Apple Silicon). It will keep needing
+  new prefixes as they're reported; a general mechanism (e.g. resolving
+  against `$PATH`) would be more correct but adds environment-dependent
+  behavior this tool has otherwise avoided. Left as is.
 
 ## In flight
 

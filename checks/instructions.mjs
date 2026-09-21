@@ -19,7 +19,11 @@ export function run(setup) {
     const { files, problems } = expandImports(entry.path, entry.scope === 'user' ? setup.configDir : setup.root);
 
     for (const [path, info] of files) {
-      if (!loaded.has(path)) loaded.set(path, { ...info, path, scope: entry.scope, entry: entry.path });
+      // Tag by where the file physically lives, not by whichever entry
+      // happened to pull it in first — a project CLAUDE.md that imports
+      // ~/.claude/notes.md is still paying a user-scope cost.
+      const scope = path.startsWith(setup.configDir) ? 'user' : entry.scope;
+      if (!loaded.has(path)) loaded.set(path, { ...info, path, scope, entry: entry.path });
     }
 
     for (const p of problems) {
@@ -41,10 +45,12 @@ export function run(setup) {
           doc: DOCS.importDepth,
         });
       }
-      if (p.kind === 'external' && entry.scope !== 'user') {
+      if (p.kind === 'external') {
         findings.push({
           severity: 'medium',
-          title: 'A project instruction file imports a file outside the project',
+          title: entry.scope === 'user'
+            ? 'Your global CLAUDE.md imports a file outside ~/.claude'
+            : 'A project instruction file imports a file outside the project',
           where: `${setup.rel(p.via)}:${p.line} -> ${p.path}`,
           detail: 'This import loads only if the approval dialog was accepted. If anyone declined it once, the file has been silently absent ever since.',
           doc: DOCS.externalImports,

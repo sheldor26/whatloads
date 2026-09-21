@@ -27,9 +27,10 @@ file without a `paths` scope, at project and user level — with line counts and
 an estimated token total.
 
 **What `~/.claude` costs everywhere, not just here.** Your global `CLAUDE.md`
-and every skill under `~/.claude/skills/` are audited by default, but their
-real cost is that you pay for them again in every project, before you have
-typed anything, forever. `whatloads --user` breaks that out on its own:
+and every skill or subagent under `~/.claude/skills/` and `~/.claude/agents/`
+are audited by default, but their real cost is that you pay for them again in
+every project, before you have typed anything, forever. `whatloads --user`
+breaks that out on its own:
 
 ```
 npx whatloads --user

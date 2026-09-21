@@ -5,19 +5,22 @@
  */
 
 import * as instructions from './instructions.mjs';
-import { DOCS } from '../lib/docs.mjs';
 
 const DESCRIPTION_LIMIT = 1536;
 
 export const coverage = [
   'what the global CLAUDE.md and unscoped rules under ~/.claude/rules/ cost on every session, in any project',
   'every skill description under ~/.claude/skills/, truncated at the same 1,536 characters Claude Code truncates at, since that is what loads at launch — not the body of the skill',
+  'every subagent description under ~/.claude/agents/, which loads at launch the same way',
   'that cost multiplied across the project directories passed with --projects, never a project count whatloads found on its own',
 ];
 
-export function run(setup) {
-  const { facts: instructionFacts } = instructions.run(setup);
-  const files = instructionFacts.files.filter((f) => f.scope === 'user');
+export function run(setup, instructionFacts) {
+  // Accept an already-computed result when the caller has one — instructions.run()
+  // walks every @import chain recursively, and bin/whatloads.mjs already runs
+  // it once for the main report; recomputing it here doubled that I/O.
+  const facts = instructionFacts || instructions.run(setup).facts;
+  const files = facts.files.filter((f) => f.scope === 'user');
   const chars = files.reduce((n, f) => n + f.chars, 0);
 
   const skills = setup.skills
@@ -35,7 +38,18 @@ export function run(setup) {
       };
     });
   const skillsChars = skills.reduce((n, s) => n + s.chars, 0);
-  const totalChars = chars + skillsChars;
+
+  const agents = setup.agents
+    .filter((a) => a.scope === 'user' && a.front.atFirstLine)
+    .map((a) => {
+      const name = typeof a.front.data.name === 'string' ? a.front.data.name : '';
+      const description = typeof a.front.data.description === 'string' ? a.front.data.description : '';
+      return name && description ? { name, path: setup.rel(a.path), chars: description.length } : null;
+    })
+    .filter(Boolean);
+  const agentsChars = agents.reduce((n, a) => n + a.chars, 0);
+
+  const totalChars = chars + skillsChars + agentsChars;
 
   return {
     findings: [],
@@ -46,9 +60,11 @@ export function run(setup) {
       skills,
       skillsChars,
       skillsEstimatedTokens: Math.round(skillsChars / 4),
+      agents,
+      agentsChars,
+      agentsEstimatedTokens: Math.round(agentsChars / 4),
       totalChars,
       totalEstimatedTokens: Math.round(totalChars / 4),
-      doc: DOCS.skillDescriptionsAtLaunch,
     },
   };
 }

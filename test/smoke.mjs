@@ -3,7 +3,7 @@
  * Every check gets a case that fires it and a case that must not.
  */
 
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -43,6 +43,9 @@ ok('frontmatter needs the first line', readFrontmatter('\n---\nname: x\n---\n').
 ok('frontmatter reads scalars', readFrontmatter('---\nname: x\n---\n').data.name === 'x');
 ok('frontmatter reads booleans', readFrontmatter('---\ndisable-model-invocation: true\n---\n').data['disable-model-invocation'] === true);
 ok('unterminated frontmatter is reported', readFrontmatter('---\nname: x\n').unterminated === true);
+ok('CRLF frontmatter closes correctly', readFrontmatter('---\r\nname: x\r\n---\r\n\r\nBody\r\n').unterminated !== true);
+ok('CRLF frontmatter values have no trailing \\r', readFrontmatter('---\r\nname: x\r\n---\r\n').data.name === 'x');
+ok('a quoted comma inside an array item survives', JSON.stringify(readFrontmatter('---\ntags: ["a, b", "c"]\n---\n').data.tags) === JSON.stringify(['a, b', 'c']));
 ok('nearest finds a typo', nearest('SesionStart') === 'SessionStart');
 ok('nearest gives up on nonsense', nearest('bananas') === null);
 
@@ -137,6 +140,28 @@ ok('a system binary in a shared hook is not reported', !has('/usr/bin/true'));
 ok('a wrapper script that echoes on a debug-only event is reported', found.some((f) => f.title.includes('runs a script that prints to stdout') && f.where.includes('loud.sh')));
 ok('a wrapper script that stays quiet is not reported', !has('quiet.sh'));
 
+const bareVar = mkdtempSync(join(tmpdir(), 'whatloads-barevar-'));
+mkdirSync(join(bareVar, '.claude', 'hooks'), { recursive: true });
+writeFileSync(join(bareVar, '.claude', 'hooks', 'direct.sh'), '#!/bin/sh\necho direct\n');
+writeFileSync(join(bareVar, '.claude', 'settings.json'), JSON.stringify({
+  hooks: { PostToolUse: [{ matcher: 'Edit', hooks: [{ type: 'command', command: '"$CLAUDE_PROJECT_DIR/.claude/hooks/direct.sh"' }] }] },
+}, null, 2));
+const bareVarFindings = hooks.run(discover(bareVar)).findings;
+ok('a script run without a bash/sh prefix is still followed', bareVarFindings.some((f) => f.title.includes('runs a script that prints to stdout') && f.where.includes('direct.sh')));
+rmSync(bareVar, { recursive: true, force: true });
+
+const symlinkRoot = mkdtempSync(join(tmpdir(), 'whatloads-symlink-'));
+mkdirSync(join(symlinkRoot, '.claude', 'agents'), { recursive: true });
+writeFileSync(join(symlinkRoot, '.claude', 'agents', 'real.md'), '---\nname: real\ndescription: Use when testing, before anything else.\n---\n\n# Real\n');
+symlinkSync(join(symlinkRoot, '.claude', 'agents'), join(symlinkRoot, '.claude', 'agents', 'cycle'), 'dir');
+let symlinkSurvived = false;
+try {
+  discover(symlinkRoot);
+  symlinkSurvived = true;
+} catch { symlinkSurvived = false; }
+ok('a symlink cycle under .claude/agents/ does not crash discover()', symlinkSurvived);
+rmSync(symlinkRoot, { recursive: true, force: true });
+
 const facts = instructions.run(setup).facts;
 ok('context cost counts the imported file', facts.files.some((f) => f.path.includes('context.md')));
 ok('context cost never counts a missing file', !facts.files.some((f) => f.path.includes('missing.md')));
@@ -182,6 +207,57 @@ ok('resolveProjectDirs rejects a path that is not a directory', dirs.invalid.len
 
 rmSync(cfgRoot, { recursive: true, force: true });
 rmSync(userProjectRoot, { recursive: true, force: true });
+
+// A subagent under ~/.claude/agents/ should add to the --user total the same
+// way a skill description does.
+const cfgWithAgent = mkdtempSync(join(tmpdir(), 'whatloads-cfg-agent-'));
+mkdirSync(join(cfgWithAgent, 'agents'), { recursive: true });
+writeFileSync(join(cfgWithAgent, 'agents', 'reviewer.md'), `---\nname: reviewer\ndescription: ${'d'.repeat(40)}\n---\n\n# Reviewer\n`);
+const emptyProject = mkdtempSync(join(tmpdir(), 'whatloads-emptyproj-'));
+const prevCfgDir2 = process.env.CLAUDE_CONFIG_DIR;
+process.env.CLAUDE_CONFIG_DIR = cfgWithAgent;
+const agentUserFacts = userScope.run(discover(emptyProject)).facts;
+if (prevCfgDir2 === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+else process.env.CLAUDE_CONFIG_DIR = prevCfgDir2;
+ok('a user-scope subagent description is counted', agentUserFacts.agentsChars === 40);
+ok('the total includes the subagent description cost', agentUserFacts.totalChars === agentUserFacts.chars + agentUserFacts.skillsChars + agentUserFacts.agentsChars && agentUserFacts.agentsChars > 0);
+rmSync(cfgWithAgent, { recursive: true, force: true });
+rmSync(emptyProject, { recursive: true, force: true });
+
+// A file physically under ~/.claude, reached via a project-scope import,
+// should still be tagged user scope — not the scope of the importing file.
+const cfgTarget = mkdtempSync(join(tmpdir(), 'whatloads-cfg-target-'));
+writeFileSync(join(cfgTarget, 'CLAUDE.md'), 'user memory\n');
+const projectImportsUser = mkdtempSync(join(tmpdir(), 'whatloads-proj-imports-user-'));
+writeFileSync(join(projectImportsUser, 'notes.md'), 'shared notes\n');
+writeFileSync(join(cfgTarget, 'shared.md'), 'shared notes\n');
+writeFileSync(join(projectImportsUser, 'CLAUDE.md'), `# Project\n\n@${join(cfgTarget, 'shared.md')}\n`);
+const prevCfgDir3 = process.env.CLAUDE_CONFIG_DIR;
+process.env.CLAUDE_CONFIG_DIR = cfgTarget;
+const importSetup = discover(projectImportsUser);
+const importFacts = instructions.run(importSetup).facts;
+if (prevCfgDir3 === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+else process.env.CLAUDE_CONFIG_DIR = prevCfgDir3;
+ok('a file physically under ~/.claude is tagged user scope even when a project file imports it', importFacts.files.find((f) => f.path.includes('shared.md'))?.scope === 'user');
+rmSync(cfgTarget, { recursive: true, force: true });
+rmSync(projectImportsUser, { recursive: true, force: true });
+
+// The global CLAUDE.md importing something outside ~/.claude carries the same
+// approval-dialog risk as a project file doing it — it should not be exempt.
+const cfgExternal = mkdtempSync(join(tmpdir(), 'whatloads-cfg-external-'));
+const outsideDir = mkdtempSync(join(tmpdir(), 'whatloads-outside-'));
+writeFileSync(join(outsideDir, 'notes.md'), 'outside\n');
+writeFileSync(join(cfgExternal, 'CLAUDE.md'), `# Me\n\n@${join(outsideDir, 'notes.md')}\n`);
+const externalProject = mkdtempSync(join(tmpdir(), 'whatloads-externalproj-'));
+const prevCfgDir4 = process.env.CLAUDE_CONFIG_DIR;
+process.env.CLAUDE_CONFIG_DIR = cfgExternal;
+const externalFindings = instructions.run(discover(externalProject)).findings;
+if (prevCfgDir4 === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+else process.env.CLAUDE_CONFIG_DIR = prevCfgDir4;
+ok('the global CLAUDE.md importing a file outside ~/.claude is reported', externalFindings.some((f) => f.title.includes('global CLAUDE.md imports a file outside')));
+rmSync(cfgExternal, { recursive: true, force: true });
+rmSync(outsideDir, { recursive: true, force: true });
+rmSync(externalProject, { recursive: true, force: true });
 
 // --- clean fixture ---------------------------------------------------------
 

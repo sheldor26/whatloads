@@ -13,7 +13,7 @@ export const coverage = [
 ];
 
 const SHELL_ECHO = /(^|[;&|\n]\s*)(echo|printf|cat|print)\b/;
-const SCRIPT_REF = /(?:^|[;&|]\s*)(?:bash|sh|zsh|python3?|node)\s+["']?(\.{0,2}\/?[^"'\s]+\.(?:sh|bash|zsh|py|mjs|cjs|js|ts))["']?|(?:^|[;&|]\s*)["']?(\.{0,2}\/[^"'\s]+\.(?:sh|bash|zsh|py|mjs|cjs|js|ts))["']?/;
+const SCRIPT_REF = /(?:^|[;&|]\s*)(?:bash|sh|zsh|python3?|node)\s+["']?(\.{0,2}\/?[^"'\s]+\.(?:sh|bash|zsh|py|mjs|cjs|js|ts))["']?|(?:^|[;&|]\s*)["']?(\.{0,2}\/[^"'\s]+\.(?:sh|bash|zsh|py|mjs|cjs|js|ts)|\$\{?CLAUDE_PROJECT_DIR\}?[^"'\s]+\.(?:sh|bash|zsh|py|mjs|cjs|js|ts))["']?/;
 
 function scriptRef(command) {
   const m = command.match(SCRIPT_REF);
@@ -132,7 +132,7 @@ export function run(setup) {
           if (command && file.scope === 'project') {
             const absolute = (command.match(/(?:^|["'\s])((?:~|\/|[A-Za-z]:\\)[^"'\s]+)/g) || [])
               .map((s) => s.trim().replace(/^["']/, ''))
-              .filter((s) => !s.startsWith('/bin/') && !s.startsWith('/usr/bin/') && !s.startsWith('/usr/local/bin/'))
+              .filter((s) => !['/bin/', '/usr/bin/', '/usr/local/bin/', '/opt/homebrew/bin/', '/opt/local/bin/'].some((prefix) => s.startsWith(prefix)))
               .filter((s) => !resolve(s).startsWith(resolve(setup.root)));
             if (absolute.length) {
               findings.push({

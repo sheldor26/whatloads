@@ -62,17 +62,23 @@ const projectsOpt = opt('projects', null);
 const showUser = flag('user') || Boolean(projectsOpt);
 const projectDirs = projectsOpt ? resolveProjectDirs(projectsOpt, process.cwd()) : null;
 
-const results = [
+const baseResults = [
   ['instructions', instructions],
   ['skills', skills],
   ['subagents', agents],
   ['mcp', mcp],
   ['hooks and settings', hooks],
-  ...(showUser ? [['user scope', userScope]] : []),
 ].map(([name, mod]) => [name, mod, mod.run(setup)]);
 
+const contextFacts = baseResults.find(([name]) => name === 'instructions')[2].facts;
+
+// Reuses contextFacts rather than letting user-scope.mjs recompute
+// instructions.run() itself, which would redo the recursive @import walk.
+const results = showUser
+  ? [...baseResults, ['user scope', userScope, userScope.run(setup, contextFacts)]]
+  : baseResults;
+
 const findings = results.flatMap(([, , r]) => r.findings);
-const contextFacts = results.find(([name]) => name === 'instructions')[2].facts;
 const userScopeFacts = showUser ? results.find(([name]) => name === 'user scope')[2].facts : null;
 
 if (flag('json')) {
