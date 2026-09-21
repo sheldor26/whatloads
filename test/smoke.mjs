@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { discover } from '../lib/discover.mjs';
 import * as instructions from '../checks/instructions.mjs';
 import * as skills from '../checks/skills.mjs';
+import * as agents from '../checks/agents.mjs';
 import * as hooks from '../checks/hooks.mjs';
 import * as userScope from '../checks/user-scope.mjs';
 import { withoutCode, imports } from '../lib/markdown.mjs';
@@ -52,6 +53,13 @@ write('.claude/skills/stray.md', 'I look like a skill and am not one.\n');
 write('.claude/skills/good/SKILL.md', '---\nname: good\ndescription: Use when the build fails, before touching CI config.\n---\n\n# Good\n');
 write('.claude/skills/late/SKILL.md', '\n---\nname: late\ndescription: Use when something happens.\n---\n\n# Late\n');
 write('.claude/skills/nodesc/SKILL.md', '---\nname: nodesc\n---\n\n# No description\n');
+write('.claude/agents/no-name.md', '---\nrole: none of this matters\n---\n\nJust a note to self.\n');
+write('.claude/agents/bad-name.md', '---\nname: -bad\ndescription: Use when reviewing code.\n---\n\n# Bad\n');
+write('.claude/agents/colon-name.md', '---\nname: my-plugin:reviewer\ndescription: Use when reviewing code.\n---\n\n# Colon\n');
+write('.claude/agents/no-desc.md', '---\nname: nodesc-agent\n---\n\n# No description\n');
+write('.claude/agents/nested/dupe-a.md', '---\nname: duplicate\ndescription: Use when the first one runs.\n---\n\n# Dupe A\n');
+write('.claude/agents/dupe-b.md', '---\nname: duplicate\ndescription: Use when the second one runs.\n---\n\n# Dupe B\n');
+write('.claude/agents/good.md', '---\nname: good-agent\ndescription: Use when reviewing a pull request, before merging.\n---\n\n# Good\n');
 write('.claude/settings.json', JSON.stringify({
   hooks: {
     SessionStart: [{ matcher: 'startup|banana', hooks: [{ type: 'command', command: 'echo hello' }] }],
@@ -71,6 +79,7 @@ const setup = discover(root);
 const found = [
   ...instructions.run(setup).findings,
   ...skills.run(setup).findings,
+  ...agents.run(setup).findings,
   ...hooks.run(setup).findings,
 ];
 const has = (needle) => found.some((f) => `${f.title} ${f.where} ${f.detail}`.includes(needle));
@@ -82,6 +91,13 @@ ok('a stray markdown file in skills/ is reported', has('.claude/skills/stray.md'
 ok('a real skill is not reported', !found.some((f) => f.where.includes('skills/good/')));
 ok('frontmatter below line one is reported', found.some((f) => f.where.includes('late/') && f.severity === 'high'));
 ok('a missing description is reported', found.some((f) => f.where.includes('nodesc/') && f.title.includes('No description')));
+
+ok('a subagent with no name field is not reported as broken, only as documentation', has('no-name.md') && found.some((f) => f.where.includes('no-name.md') && f.severity === 'medium'));
+ok('a subagent name starting with - is reported as high', found.some((f) => f.where.includes('bad-name.md') && f.severity === 'high'));
+ok('a subagent name containing : is reported as high', found.some((f) => f.where.includes('colon-name.md') && f.severity === 'high'));
+ok('a subagent with no description is reported as high', found.some((f) => f.where.includes('no-desc.md') && f.title.includes('with no description')));
+ok('two subagents with the same name, including a nested one, are reported', has('duplicate') && has('nested/dupe-a.md') && has('dupe-b.md'));
+ok('a real subagent is not reported', !found.some((f) => f.where.includes('agents/good.md')));
 ok('an unknown matcher value is reported', has('"banana"'));
 ok('a matcher on an event without one is reported', has('Stop does not take a matcher'));
 ok('an echo on a debug-only event is reported', has('PostToolUse prints to stdout'));
@@ -143,6 +159,8 @@ const clean = mkdtempSync(join(tmpdir(), 'whatloads-clean-'));
 mkdirSync(join(clean, '.claude', 'skills', 'fine'), { recursive: true });
 writeFileSync(join(clean, 'CLAUDE.md'), '# Small\n\nA few lines.\n');
 writeFileSync(join(clean, '.claude', 'skills', 'fine', 'SKILL.md'), '---\nname: fine\ndescription: Use when releasing, before tagging.\n---\n\n# Fine\n');
+mkdirSync(join(clean, '.claude', 'agents'), { recursive: true });
+writeFileSync(join(clean, '.claude', 'agents', 'reviewer.md'), '---\nname: reviewer\ndescription: Use when reviewing a diff, before it merges.\n---\n\n# Reviewer\n');
 
 // Isolated from this machine's real ~/.claude, so the assertion below holds
 // regardless of what is actually installed globally when the suite runs.
@@ -154,9 +172,27 @@ const cleanSetup = discover(clean);
 const cleanFindings = [
   ...instructions.run(cleanSetup).findings,
   ...skills.run(cleanSetup).findings,
+  ...agents.run(cleanSetup).findings,
   ...hooks.run(cleanSetup).findings,
 ].filter((f) => f.severity !== 'note');
 ok('a tidy project produces no findings', cleanFindings.length === 0);
+
+// --- subagent description budget --------------------------------------------
+
+const budget = mkdtempSync(join(tmpdir(), 'whatloads-budget-'));
+mkdirSync(join(budget, '.claude', 'agents'), { recursive: true });
+for (let i = 0; i < 20; i++) {
+  writeFileSync(
+    join(budget, '.claude', 'agents', `agent-${i}.md`),
+    `---\nname: agent-${i}\ndescription: ${'x'.repeat(3200)}\n---\n\n# Agent ${i}\n`,
+  );
+}
+const budgetSetup = discover(budget);
+const budgetFacts = agents.run(budgetSetup).facts;
+const budgetFindings = agents.run(budgetSetup).findings;
+ok('the description budget check sums every subagent description', budgetFacts.estimatedTokens > 15000);
+ok('over 15,000 tokens of descriptions is reported', budgetFindings.some((f) => f.title.includes('over the documented 15,000')));
+rmSync(budget, { recursive: true, force: true });
 
 if (prevCfgDirForClean === undefined) delete process.env.CLAUDE_CONFIG_DIR;
 else process.env.CLAUDE_CONFIG_DIR = prevCfgDirForClean;

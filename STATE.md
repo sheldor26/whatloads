@@ -21,6 +21,12 @@ updated: 2026-09-20
   not on line 1, unterminated frontmatter, missing descriptions, descriptions
   past the 1,536-character truncation point, `disable-model-invocation`, and
   oversized `SKILL.md` bodies.
+- Subagent checks (`.claude/agents/*.md`, including subfolders): no `name`
+  field (treated as documentation, not a subagent), a name starting with `-`
+  or containing `:` (silently skipped), a `name` with no `description`
+  (silently skipped), two subagents in the same tree sharing a `name`
+  (only one loads, by filesystem read order), and combined descriptions past
+  the documented 15,000-token budget where Claude Code itself starts warning.
 - Hook and settings checks: unparseable settings files, event names that do not
   exist (with a suggestion), matchers on events that take none, matcher values
   outside the documented set, hooks printing to a stream the model never reads,
@@ -36,7 +42,7 @@ updated: 2026-09-20
   report says explicitly that it was not multiplied, since nothing under
   `~/.claude` documents a project list and whatloads does not crawl the
   filesystem for one. Also in `--json`, under `userScope`.
-- 36 assertions in `test/smoke.mjs`, against fixtures on disk, including one
+- 46 assertions in `test/smoke.mjs`, against fixtures on disk, including one
   that points `CLAUDE_CONFIG_DIR` at a fake config directory.
 
 ## In flight
@@ -52,7 +58,18 @@ updated: 2026-09-20
    `bash run.sh` whose script ends in a bare `echo` is caught the way an inline
    `echo` already is. This is the check that would have caught the defect the
    tool was built around.
-3. `whatloads` on its own real `~/.claude` (not a fixture) currently reports
+3. MCP checks (`.mcp.json`): an entry with `url` but no `type` is read as
+   stdio and the connection silently fails; credential env vars
+   (`ANTHROPIC_API_KEY`, `NPM_TOKEN`, etc.) are read as empty in headers/URLs
+   by design; an unset env var with no default is sent as the literal
+   `${VAR}` string. Same shape as the subagent checks just shipped, citations
+   already verified against code.claude.com/docs/en/mcp.
+4. Once this is pushed and 0.1.x is live on GitHub: submit to
+   awesome-claude-code (issue-template flow, highest-ROI distribution move
+   for a tool with zero users so far — competitive research turned up agnix,
+   claudelint and AgentLinter as real overlap; per-finding doc citation and
+   the `--user`/`--projects` framing are the parts none of them do).
+5. `whatloads` on its own real `~/.claude` (not a fixture) currently reports
    3 high, 13 low: loose `.md` files directly in `~/.claude/skills/` that have
    never loaded (the L-0001 defect class), and skill descriptions that don't
    name a trigger. Not a regression from anything in this session — confirmed

@@ -16,6 +16,7 @@ import { resolveProjectDirs } from '../lib/projects.mjs';
 import { printFindings, printContextCost, printUserScopeCost, printCoverage, c } from '../lib/report.mjs';
 import * as instructions from '../checks/instructions.mjs';
 import * as skills from '../checks/skills.mjs';
+import * as agents from '../checks/agents.mjs';
 import * as hooks from '../checks/hooks.mjs';
 import * as userScope from '../checks/user-scope.mjs';
 
@@ -63,6 +64,7 @@ const projectDirs = projectsOpt ? resolveProjectDirs(projectsOpt, process.cwd())
 const results = [
   ['instructions', instructions],
   ['skills', skills],
+  ['subagents', agents],
   ['hooks and settings', hooks],
   ...(showUser ? [['user scope', userScope]] : []),
 ].map(([name, mod]) => [name, mod, mod.run(setup)]);

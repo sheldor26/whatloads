@@ -7,6 +7,32 @@
 >
 > Add entries with: `node .bitacora/cli.mjs new mistake "Title" --tags area,failure-mode`
 <!-- bitacora:entry
+id: M-0004
+date: 2026-09-21
+tags: [publishing, process]
+severity: medium
+-->
+### 0.1.2 was published from a dirty working tree
+
+**What happened.** npm publish packed the working directory, not the last commit. The subagent
+checks — checks/agents.mjs and changes across five files — went to the registry
+while none of it existed in git. For a few minutes the published package
+contained code that could not be found in the repository it points at, which is
+the worst possible state for an open source tool: the thing people audit and
+the thing they run were different.
+
+**Root cause.** Publishing and committing are separate actions with no relationship enforced
+between them, and npm's output looks identical either way. The version bump ran
+first and succeeded, which made the sequence feel finished. Nothing in the
+release path ever asks whether the tree is clean.
+
+**Guardrail.** A prepublishOnly script that fails when `git status --porcelain` is not empty,
+so npm refuses the publish itself rather than relying on anyone remembering.
+Standing rule: the artifact that goes to a registry is built from a commit, and
+the version bump is the last thing that happens before the publish, not the
+first.
+
+<!-- bitacora:entry
 id: M-0003
 date: 2026-09-21
 tags: [testing, scope]

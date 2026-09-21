@@ -84,6 +84,15 @@ the flat, per-session number instead of a total it made up.
 - A hook that prints to stdout on an event whose stdout goes to the debug log,
   where the model never sees it.
 - A hook command pointing at a script that is not in the repository.
+- A `.claude/agents/*.md` file with no `name` — treated as documentation, never
+  loaded as a subagent.
+- A subagent name starting with `-` or containing `:` — silently skipped, logged
+  only to the debug log.
+- A subagent with a `name` but no `description` — the whole file is skipped.
+- Two subagents in the same directory tree sharing a `name` — Claude Code loads
+  only one, chosen by filesystem read order.
+- Subagent descriptions that add up past the documented 15,000-token budget,
+  where Claude Code itself starts warning at launch.
 
 ## Every finding cites its source
 

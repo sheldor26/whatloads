@@ -1,6 +1,6 @@
 {
   "name": "whatloads",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Audit the agent setup in a repository: what your instructions cost every session, which skills can never fire, which hooks write where nobody reads.",
   "type": "module",
   "bin": {
@@ -34,6 +34,7 @@
   ],
   "scripts": {
     "test": "node test/smoke.mjs",
-    "logbook": "node .bitacora/cli.mjs"
+    "logbook": "node .bitacora/cli.mjs",
+    "prepublishOnly": "node scripts/clean-tree.mjs && node test/smoke.mjs"
   }
 }
