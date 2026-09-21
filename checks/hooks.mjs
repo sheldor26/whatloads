@@ -13,6 +13,11 @@ export const coverage = [
 ];
 
 const SHELL_ECHO = /(^|[;&|\n]\s*)(echo|printf|cat|print)\b/;
+// A script whose plain-text echo/printf is piped into something that wraps it
+// as {"systemMessage": ...} never actually puts plain text on stdout — only
+// the wrapper's own output does. Naming the field is a cheap, honest signal
+// that this is already handled, without trying to parse the pipeline for real.
+const printsSystemMessage = (text) => /systemMessage/.test(text);
 const SCRIPT_REF = /(?:^|[;&|]\s*)(?:bash|sh|zsh|python3?|node)\s+["']?(\.{0,2}\/?[^"'\s]+\.(?:sh|bash|zsh|py|mjs|cjs|js|ts))["']?|(?:^|[;&|]\s*)["']?(\.{0,2}\/[^"'\s]+\.(?:sh|bash|zsh|py|mjs|cjs|js|ts)|\$\{?CLAUDE_PROJECT_DIR\}?[^"'\s]+\.(?:sh|bash|zsh|py|mjs|cjs|js|ts))["']?/;
 
 function scriptRef(command) {
@@ -89,7 +94,7 @@ export function run(setup) {
         for (const hook of entries) {
           const command = hook && typeof hook.command === 'string' ? hook.command : '';
 
-          if (command && (spec.stdout === 'debug' || spec.stdout === 'discarded' || spec.stdout === 'ambiguous') && SHELL_ECHO.test(command)) {
+          if (command && (spec.stdout === 'debug' || spec.stdout === 'discarded' || spec.stdout === 'ambiguous') && SHELL_ECHO.test(command) && !printsSystemMessage(command)) {
             findings.push({
               severity: spec.stdout === 'ambiguous' ? 'medium' : 'high',
               title: spec.stdout === 'ambiguous'
@@ -110,7 +115,7 @@ export function run(setup) {
             const scriptPath = ref ? resolve(setup.root, ref) : null;
             if (scriptPath && scriptPath.startsWith(resolve(setup.root)) && existsSync(scriptPath)) {
               const scriptText = (() => { try { return readFileSync(scriptPath, 'utf8'); } catch { return ''; } })();
-              if (SHELL_ECHO.test(scriptText)) {
+              if (SHELL_ECHO.test(scriptText) && !printsSystemMessage(scriptText)) {
                 findings.push({
                   severity: spec.stdout === 'ambiguous' ? 'medium' : 'high',
                   title: spec.stdout === 'ambiguous'

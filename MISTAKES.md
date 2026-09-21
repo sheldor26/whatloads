@@ -7,6 +7,39 @@
 >
 > Add entries with: `node .bitacora/cli.mjs new mistake "Title" --tags area,failure-mode`
 <!-- bitacora:entry
+id: M-0005
+date: 2026-09-21
+tags: [hooks, false-positive]
+severity: low
+-->
+### The script-echo check flagged a script that already wraps its output as systemMessage JSON
+
+**What happened.** Running `whatloads` on its own repository reported this project's own
+`.claude/hooks/bitacora-session-end.sh` for printing plain text on the
+ambiguous-stdout `Stop` event. The script was correct: its `echo`/`printf`
+calls are piped into `node -e '...'`, which wraps them as
+`JSON.stringify({ systemMessage: ... })` before anything reaches real stdout —
+running the script by hand confirmed the actual output was well-formed JSON,
+exit 0.
+
+**Root cause.** The check (`checks/hooks.mjs`, shipped the previous session) is a static text
+scan: it looks for `echo`/`printf`/`cat` anywhere in a command or the script
+it runs, with no notion of a shell pipe. It cannot tell an `echo` that goes
+straight to stdout from one whose output is piped into a transform that
+changes it before it ever reaches stdout — text scanning was never going to
+model that without actually parsing shell, which this project has deliberately
+avoided (DECISIONS.md D-0004).
+
+**Guardrail.** Before flagging a plain-text print, the check now looks for the literal string
+`systemMessage` anywhere in the same command or script. Its presence is a
+cheap, honest signal that the author already built the JSON-wrapper pattern
+the finding would otherwise tell them to build — matching the project's
+existing pattern for a heuristic-not-a-fact check (the trigger-word guess in
+`checks/skills.mjs`, always labelled `inferred`). A regression test
+(`test/smoke.mjs`, "a script whose echo is piped into a systemMessage
+wrapper is not reported") pins this down.
+
+<!-- bitacora:entry
 id: M-0004
 date: 2026-09-21
 tags: [publishing, process]

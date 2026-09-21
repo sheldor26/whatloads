@@ -75,6 +75,7 @@ write('.mcp.json', JSON.stringify({
 }, null, 2));
 write('.claude/hooks/loud.sh', '#!/bin/sh\ndo-the-thing\necho done\n');
 write('.claude/hooks/quiet.sh', '#!/bin/sh\nexit 0\n');
+write('.claude/hooks/wrapped.sh', '#!/bin/sh\necho plain | node -e \'process.stdout.write(JSON.stringify({systemMessage: "x"}))\'\n');
 write('.claude/settings.json', JSON.stringify({
   hooks: {
     SessionStart: [{ matcher: 'startup|banana', hooks: [{ type: 'command', command: 'echo hello' }] }],
@@ -83,6 +84,7 @@ write('.claude/settings.json', JSON.stringify({
     SesionStart: [{ hooks: [{ type: 'command', command: 'true' }] }],
     SubagentStop: [{ matcher: 'all', hooks: [{ type: 'command', command: 'bash "$CLAUDE_PROJECT_DIR/.claude/hooks/loud.sh"' }] }],
     SubagentStart: [{ matcher: 'all', hooks: [{ type: 'command', command: 'bash "$CLAUDE_PROJECT_DIR/.claude/hooks/quiet.sh"' }] }],
+    TaskCompleted: [{ hooks: [{ type: 'command', command: 'bash "$CLAUDE_PROJECT_DIR/.claude/hooks/wrapped.sh"' }] }],
     PreToolUse: [
     { matcher: 'Bash', hooks: [{ type: 'command', command: 'bash "$CLAUDE_PROJECT_DIR/.claude/hooks/nope.sh"' }] },
     { matcher: 'Write', hooks: [{ type: 'command', command: '"/Users/someone/tools/guard.mjs" hook || true' }] },
@@ -139,6 +141,7 @@ ok('a machine-specific path in a shared hook is reported', has('/Users/someone/t
 ok('a system binary in a shared hook is not reported', !has('/usr/bin/true'));
 ok('a wrapper script that echoes on a debug-only event is reported', found.some((f) => f.title.includes('runs a script that prints to stdout') && f.where.includes('loud.sh')));
 ok('a wrapper script that stays quiet is not reported', !has('quiet.sh'));
+ok('a script whose echo is piped into a systemMessage wrapper is not reported', !has('wrapped.sh'));
 
 const bareVar = mkdtempSync(join(tmpdir(), 'whatloads-barevar-'));
 mkdirSync(join(bareVar, '.claude', 'hooks'), { recursive: true });

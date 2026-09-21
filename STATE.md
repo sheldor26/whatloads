@@ -92,16 +92,15 @@ updated: 2026-09-20
    turned up agnix, claudelint and AgentLinter as real overlap; per-finding
    doc citation and the `--user`/`--projects` framing are the parts none of
    them do).
-2. `whatloads` on its own real `~/.claude` (not a fixture) currently reports
-   3 high, 13 low: loose `.md` files directly in `~/.claude/skills/` that have
-   never loaded (the L-0001 defect class), and skill descriptions that don't
-   name a trigger. Not a regression from anything in this session — confirmed
-   identical on unmodified `master` — but it means a completely clean run of
-   `whatloads` against this machine's actual setup hasn't been demonstrated
-   yet, only against fixtures. The `Stop` hook check now also finds a real,
-   unrelated issue in *this* repo's own `.claude/hooks/bitacora-session-end.sh`
-   (prints plain text on an ambiguous-stdout event) — not fixed here, since
-   that script belongs to bitacora, not to a check.
+2. `whatloads` on its own real `~/.claude` now reports 0 high, 0 medium,
+   13 low. The three loose `.md` files in `~/.claude/skills/` (the L-0001
+   defect class) were moved to `<name>/SKILL.md`, and the one medium finding
+   — this repo's own `.claude/hooks/bitacora-session-end.sh`, flagged for
+   printing plain text on the ambiguous-stdout `Stop` event — turned out to
+   be whatloads misreading a script that already wraps its echo/printf output
+   as `systemMessage` JSON through a pipe (M-0005); fixed in the check, not
+   the script, which was correct all along. What remains is 13 low, inferred
+   findings: real skill descriptions that don't name a trigger word.
 
 ## Known rough edges
 
